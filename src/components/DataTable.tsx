@@ -17,9 +17,11 @@ export interface ProfitResult {
   best_source_platform: string;
   best_source_price: number;
   best_source_currency: string;
+  best_source_url: string; // 追加: 仕入れ元のURL
   best_target_platform: string;
   best_target_price: number;
   best_target_currency: string;
+  best_target_url: string; // 追加: 販売先のURL
   profit_amount: number;
   profit_percentage: number;
   score: number;
@@ -82,7 +84,21 @@ export default function DataTable({ data, isLoading, onSortChange }: DataTablePr
       header: '仕入れ元',
       cell: (info) => (
         <div>
-          <div className="font-medium">{info.getValue()}</div>
+          <div className="font-medium">
+            {info.row.original.best_source_url ? (
+              <a 
+                href={info.row.original.best_source_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline cursor-pointer"
+                aria-label={`${info.getValue()}で商品を見る`}
+              >
+                {info.getValue()}
+              </a>
+            ) : (
+              info.getValue()
+            )}
+          </div>
           <div className="text-sm">
             {new Intl.NumberFormat('ja-JP', {
               style: 'currency',
@@ -98,7 +114,21 @@ export default function DataTable({ data, isLoading, onSortChange }: DataTablePr
       header: '販売先',
       cell: (info) => (
         <div>
-          <div className="font-medium">{info.getValue()}</div>
+          <div className="font-medium">
+            {info.row.original.best_target_url ? (
+              <a 
+                href={info.row.original.best_target_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline cursor-pointer"
+                aria-label={`${info.getValue()}で商品を見る`}
+              >
+                {info.getValue()}
+              </a>
+            ) : (
+              info.getValue()
+            )}
+          </div>
           <div className="text-sm">
             {new Intl.NumberFormat('ja-JP', {
               style: 'currency',
