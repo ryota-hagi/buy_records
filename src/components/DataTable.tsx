@@ -17,9 +17,11 @@ export interface ProfitResult {
   best_source_platform: string;
   best_source_price: number;
   best_source_currency: string;
+  best_source_url?: string;
   best_target_platform: string;
   best_target_price: number;
   best_target_currency: string;
+  best_target_url?: string;
   profit_amount: number;
   profit_percentage: number;
   score: number;
@@ -80,33 +82,65 @@ export default function DataTable({ data, isLoading, onSortChange }: DataTablePr
     // 仕入れ情報列
     columnHelper.accessor('best_source_platform', {
       header: '仕入れ元',
-      cell: (info) => (
-        <div>
-          <div className="font-medium">{info.getValue()}</div>
-          <div className="text-sm">
-            {new Intl.NumberFormat('ja-JP', {
-              style: 'currency',
-              currency: info.row.original.best_source_currency,
-            }).format(info.row.original.best_source_price)}
-          </div>
-        </div>
-      ),
+      cell: (info) => {
+        const url = info.row.original.best_source_url;
+        const content = (
+          <>
+            <div className="font-medium">{info.getValue()}</div>
+            <div className="text-sm">
+              {new Intl.NumberFormat('ja-JP', {
+                style: 'currency',
+                currency: info.row.original.best_source_currency,
+              }).format(info.row.original.best_source_price)}
+            </div>
+          </>
+        );
+
+        return url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block hover:underline text-blue-600"
+          >
+            {content}
+          </a>
+        ) : (
+          <div>{content}</div>
+        );
+      },
     }),
     
     // 販売先情報列
     columnHelper.accessor('best_target_platform', {
       header: '販売先',
-      cell: (info) => (
-        <div>
-          <div className="font-medium">{info.getValue()}</div>
-          <div className="text-sm">
-            {new Intl.NumberFormat('ja-JP', {
-              style: 'currency',
-              currency: info.row.original.best_target_currency,
-            }).format(info.row.original.best_target_price)}
-          </div>
-        </div>
-      ),
+      cell: (info) => {
+        const url = info.row.original.best_target_url;
+        const content = (
+          <>
+            <div className="font-medium">{info.getValue()}</div>
+            <div className="text-sm">
+              {new Intl.NumberFormat('ja-JP', {
+                style: 'currency',
+                currency: info.row.original.best_target_currency,
+              }).format(info.row.original.best_target_price)}
+            </div>
+          </>
+        );
+
+        return url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block hover:underline text-blue-600"
+          >
+            {content}
+          </a>
+        ) : (
+          <div>{content}</div>
+        );
+      },
     }),
     
     // 利益額列
