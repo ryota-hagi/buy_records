@@ -1,0 +1,24 @@
+# HTTP通信
+requests>=2.28.0
+
+# 環境変数管理
+python-dotenv>=1.0.0
+
+# データ処理
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 進捗表示
+tqdm>=4.65.0
+
+# 型ヒント
+typing-extensions>=4.5.0
+
+# Mercari API
+mercapi>=0.1.0
+
+# Supabase
+supabase>=0.7.1
+
+# Google Cloud Translation API
+google-cloud-translate>=3.12.0
