@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import axios from 'axios';
+import UnifiedJanSearchEngine from '../../jan/unified_search_engine';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -36,20 +36,6 @@ interface SearchResponse {
   };
 }
 
-
-// 重複除去関数
-function removeDuplicates(results: SearchResult[]): SearchResult[] {
-  const seen = new Set<string>();
-  return results.filter((item: SearchResult) => {
-    const key = `${item.platform}-${item.item_title}-${item.price}`;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
 // 環境変数の確認
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -60,278 +46,52 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// JANコードから商品名を取得する関数（API検索結果から取得）
-async function getProductNameFromJan(janCode: string): Promise<string> {
+// 統合JANコード検索を実行する関数（統合検索エンジン使用）
+async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse> {
   try {
-    console.log(`[PRODUCT_NAME] Fetching product name for JAN: ${janCode}`);
+    console.log(`[UNIFIED] Starting unified JAN search for: ${janCode}`);
     
-    // まずeBay APIで商品名を取得を試行
-    const ebayAppId = process.env.EBAY_APP_ID;
-    if (ebayAppId) {
-      try {
-        const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
-          params: {
-            'OPERATION-NAME': 'findItemsByKeywords',
-            'SERVICE-VERSION': '1.0.0',
-            'SECURITY-APPNAME': ebayAppId,
-            'RESPONSE-DATA-FORMAT': 'JSON',
-            'REST-PAYLOAD': '',
-            'keywords': janCode,
-            'paginationInput.entriesPerPage': 1
-          },
-          timeout: 3000
-        });
-
-        const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
-        if (items.length > 0 && items[0].title?.[0]) {
-          const productName = items[0].title[0];
-          console.log(`[PRODUCT_NAME] Found product name from eBay: ${productName}`);
-          return productName;
-        }
-      } catch (error) {
-        console.warn(`[PRODUCT_NAME] eBay API failed for product name lookup:`, error);
-      }
-    }
-
-    // eBayで見つからない場合、Yahoo Shopping APIで試行
-    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
-    if (yahooAppId) {
-      try {
-        const response = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
-          params: {
-            appid: yahooAppId,
-            jan_code: janCode,
-            results: 1,
-            output: 'json'
-          },
-          timeout: 3000
-        });
-
-        const items = response.data?.hits || [];
-        if (items.length > 0 && items[0].name) {
-          const productName = items[0].name;
-          console.log(`[PRODUCT_NAME] Found product name from Yahoo: ${productName}`);
-          return productName;
-        }
-      } catch (error) {
-        console.warn(`[PRODUCT_NAME] Yahoo API failed for product name lookup:`, error);
-      }
-    }
-
-    // どちらのAPIでも見つからない場合はデフォルト名を返す
-    console.warn(`[PRODUCT_NAME] No product name found for JAN: ${janCode}`);
-    return `商品 (JANコード: ${janCode})`;
+    // 統合検索エンジンのインスタンスを作成
+    const searchEngine = new UnifiedJanSearchEngine();
     
-  } catch (error) {
-    console.error(`[PRODUCT_NAME] Error fetching product name:`, error);
-    return `商品 (JANコード: ${janCode})`;
-  }
-}
-
-// JANコード検索を実行する関数（Node.js版 - Vercel対応）
-async function executeJanSearch(janCode: string): Promise<SearchResponse> {
-  try {
-    console.log(`[MAIN] Starting Node.js JAN search for: ${janCode}`);
-    console.log(`[MAIN] Target: 10 items each from eBay API, Yahoo API → 20 total`);
+    // 統合検索を実行
+    const unifiedResult = await searchEngine.executeUnifiedJanSearch(janCode);
     
-    // 環境変数の詳細チェック
-    const ebayAppId = process.env.EBAY_APP_ID;
-    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
-    
-    console.log(`[MAIN] Environment variables check:`);
-    console.log(`[MAIN] - EBAY_APP_ID: ${ebayAppId ? `SET (${ebayAppId.substring(0, 10)}...)` : 'NOT SET'}`);
-    console.log(`[MAIN] - YAHOO_SHOPPING_APP_ID: ${yahooAppId ? `SET (${yahooAppId.substring(0, 10)}...)` : 'NOT SET'}`);
-    console.log(`[MAIN] - NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`[MAIN] - All env keys:`, Object.keys(process.env).filter(key => key.includes('EBAY') || key.includes('YAHOO')));
-    console.log(`[MAIN] - All env keys (full):`, Object.keys(process.env).sort());
-    
-    // 環境変数が設定されていない場合は即座にエラーを返す
-    if (!ebayAppId && !yahooAppId) {
-      const errorMsg = `API検索に失敗しました。eBay、Yahoo Shopping、メルカリのAPIが利用できません。環境変数が設定されていません。
-      利用可能な環境変数: ${Object.keys(process.env).filter(key => key.includes('EBAY') || key.includes('YAHOO')).join(', ')}
-      NODE_ENV: ${process.env.NODE_ENV}`;
-      throw new Error(errorMsg);
+    if (!unifiedResult.success) {
+      throw new Error('統合検索エンジンの実行に失敗しました');
     }
     
-    // 各プラットフォームから並行して検索
-    console.log(`[MAIN] Starting parallel search execution...`);
-    const [ebayResults, yahooResults] = await Promise.all([
-      searchEbayNodeJS(janCode, 10),
-      searchYahooShoppingNodeJS(janCode, 10)
-    ]);
-
-    console.log(`[MAIN] Platform results: eBay ${ebayResults.length}, Yahoo ${yahooResults.length}`);
-
-    // 全結果を統合
-    const allResults = [...ebayResults, ...yahooResults];
-    console.log(`[MAIN] Combined results: ${allResults.length} total items`);
+    console.log(`[UNIFIED] Search completed: ${unifiedResult.final_results.length} final results`);
     
-    // 重複除去
-    const uniqueResults = removeDuplicates(allResults);
-    console.log(`[MAIN] After duplicate removal: ${uniqueResults.length} unique items`);
-    
-    // 価格順でソート
-    const sortedResults = uniqueResults.sort((a, b) => a.total_price - b.total_price);
-    console.log(`[MAIN] Results sorted by price`);
-    
-    // 最終的に20件に制限
-    const finalResults = sortedResults.slice(0, 20);
-    console.log(`[MAIN] Final results: ${finalResults.length} items (limited to 20)`);
-    
-    // 結果が0件の場合の詳細ログ
-    if (finalResults.length === 0) {
-      console.warn(`[MAIN] WARNING: No results found for JAN ${janCode}`);
-      console.warn(`[MAIN] eBay results: ${ebayResults.length}, Yahoo results: ${yahooResults.length}`);
-      console.warn(`[MAIN] This may indicate API configuration issues or no matching products`);
-    }
-    
-    const response = {
-      finalResults,
+    // レスポンス形式を既存の形式に合わせて変換
+    const response: SearchResponse = {
+      finalResults: unifiedResult.final_results,
       platformResults: {
-        ebay: ebayResults,
-        yahoo_shopping: yahooResults,
-        mercari: [] // メルカリは本番環境では無効
+        ebay: unifiedResult.platform_results.ebay,
+        yahoo_shopping: unifiedResult.platform_results.yahoo_shopping,
+        mercari: unifiedResult.platform_results.mercari
       },
       summary: {
-        totalFound: allResults.length,
-        afterDuplicateRemoval: uniqueResults.length,
-        finalCount: finalResults.length,
-        cheapest: finalResults.length > 0 ? finalResults[0] : null,
-        mostExpensive: finalResults.length > 0 ? finalResults[finalResults.length - 1] : null,
+        totalFound: unifiedResult.summary.total_found,
+        afterDuplicateRemoval: unifiedResult.summary.after_deduplication,
+        finalCount: unifiedResult.summary.final_count,
+        cheapest: unifiedResult.final_results.length > 0 ? unifiedResult.final_results[0] : null,
+        mostExpensive: unifiedResult.final_results.length > 0 ? 
+          unifiedResult.final_results[unifiedResult.final_results.length - 1] : null,
         platformCounts: {
-          ebay: ebayResults.length,
-          yahoo_shopping: yahooResults.length,
-          mercari: 0
+          ebay: unifiedResult.platform_results.ebay.length,
+          yahoo_shopping: unifiedResult.platform_results.yahoo_shopping.length,
+          mercari: unifiedResult.platform_results.mercari.length
         }
       }
     };
     
-    console.log(`[MAIN] Search completed successfully. Response summary:`, JSON.stringify(response.summary, null, 2));
+    console.log(`[UNIFIED] Response prepared: ${response.finalResults.length} items`);
     return response;
     
   } catch (error) {
-    console.error('[MAIN] Error executing Node.js JAN search:', error);
-    throw new Error(`Node.js検索の実行に失敗しました: ${(error as Error).message}`);
-  }
-}
-
-// eBay API検索（Node.js版）
-async function searchEbayNodeJS(janCode: string, limit: number): Promise<SearchResult[]> {
-  try {
-    console.log(`[eBay] Starting search for JAN: ${janCode}`);
-    
-    const ebayAppId = process.env.EBAY_APP_ID;
-    console.log(`[eBay] API Key configured: ${ebayAppId ? 'YES' : 'NO'}`);
-    
-    if (!ebayAppId) {
-      console.warn('[eBay] API key not configured, skipping eBay search');
-      return [];
-    }
-
-    console.log(`[eBay] Making API request to eBay Finding Service...`);
-    const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
-      params: {
-        'OPERATION-NAME': 'findItemsByKeywords',
-        'SERVICE-VERSION': '1.0.0',
-        'SECURITY-APPNAME': ebayAppId,
-        'RESPONSE-DATA-FORMAT': 'JSON',
-        'REST-PAYLOAD': '',
-        'keywords': janCode,
-        'paginationInput.entriesPerPage': limit,
-        'itemFilter(0).name': 'ListingType',
-        'itemFilter(0).value': 'FixedPrice',
-        'itemFilter(1).name': 'Condition',
-        'itemFilter(1).value': 'New'
-      },
-      timeout: 5000
-    });
-
-    console.log(`[eBay] API response status: ${response.status}`);
-    console.log(`[eBay] API response data structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
-
-    const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
-    console.log(`[eBay] Found ${items.length} raw items`);
-    
-    const results: SearchResult[] = items.map((item: any) => ({
-      platform: 'ebay',
-      item_title: item.title?.[0] || '',
-      item_url: item.viewItemURL?.[0] || '',
-      item_image_url: item.galleryURL?.[0] || '',
-      price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
-      total_price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
-      shipping_cost: parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__ || '0'),
-      condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'New',
-      seller: item.sellerInfo?.[0]?.sellerUserName?.[0] || ''
-    }));
-
-    console.log(`[eBay] Search completed successfully: ${results.length} items processed`);
-    return results;
-    
-  } catch (error) {
-    console.error('[eBay] Search error details:', {
-      message: (error as Error).message,
-      status: (error as any).response?.status,
-      statusText: (error as any).response?.statusText,
-      data: (error as any).response?.data
-    });
-    return [];
-  }
-}
-
-// Yahoo Shopping API検索（Node.js版）
-async function searchYahooShoppingNodeJS(janCode: string, limit: number): Promise<SearchResult[]> {
-  try {
-    console.log(`[Yahoo] Starting search for JAN: ${janCode}`);
-    
-    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
-    console.log(`[Yahoo] API Key configured: ${yahooAppId ? 'YES' : 'NO'}`);
-    
-    if (!yahooAppId) {
-      console.warn('[Yahoo] API key not configured, skipping Yahoo search');
-      return [];
-    }
-
-    console.log(`[Yahoo] Making API request to Yahoo Shopping Service...`);
-    const response = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
-      params: {
-        appid: yahooAppId,
-        jan_code: janCode,
-        results: limit,
-        sort: 'price',
-        output: 'json'
-      },
-      timeout: 5000
-    });
-
-    console.log(`[Yahoo] API response status: ${response.status}`);
-    console.log(`[Yahoo] API response data structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
-
-    const items = response.data?.hits || [];
-    console.log(`[Yahoo] Found ${items.length} raw items`);
-    
-    const results: SearchResult[] = items.map((item: any) => ({
-      platform: 'yahoo_shopping',
-      item_title: item.name || '',
-      item_url: item.url || '',
-      item_image_url: item.image?.medium || '',
-      price: parseInt(item.price || '0'),
-      total_price: parseInt(item.price || '0'),
-      shipping_cost: 0,
-      condition: '新品',
-      seller: item.store?.name || ''
-    }));
-
-    console.log(`[Yahoo] Search completed successfully: ${results.length} items processed`);
-    return results;
-    
-  } catch (error) {
-    console.error('[Yahoo] Search error details:', {
-      message: (error as Error).message,
-      status: (error as any).response?.status,
-      statusText: (error as any).response?.statusText,
-      data: (error as any).response?.data
-    });
-    return [];
+    console.error('[UNIFIED] Error executing unified JAN search:', error);
+    throw new Error(`統合検索の実行に失敗しました: ${(error as Error).message}`);
   }
 }
 
@@ -419,7 +179,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: 新しい検索タスクを作成（バックグラウンド実行）
+// POST: 新しい検索タスクを作成（統合検索エンジン使用）
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -441,10 +201,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Creating real search task for JAN code: ${cleanJanCode}`);
+    console.log(`Creating unified search task for JAN code: ${cleanJanCode}`);
 
-    // JANコードから商品名を取得（API検索）
-    const productName = await getProductNameFromJan(cleanJanCode);
+    // 統合検索エンジンで商品名を取得
+    const searchEngine = new UnifiedJanSearchEngine();
+    const productNameResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+    const productName = productNameResult.product_name;
 
     // タスクをデータベースに作成（pending状態）
     const taskData = {
@@ -452,14 +214,14 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       search_params: {
         jan_code: cleanJanCode,
-        platforms: ['ebay', 'yahoo_shopping', 'mercari']
+        platforms: ['yahoo_shopping', 'mercari', 'ebay']
       },
       processing_logs: [
         {
           timestamp: new Date().toISOString(),
           step: 'task_created',
           status: 'info',
-          message: 'タスクが作成されました（実際のAPI検索版）'
+          message: 'タスクが作成されました（統合検索エンジン版）'
         }
       ],
       created_at: new Date().toISOString(),
@@ -480,11 +242,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Real search task created: ${task.id}`);
+    console.log(`Unified search task created: ${task.id}`);
 
-    // バックグラウンドでタスクを実行開始
-    executeTaskInBackground(task.id, cleanJanCode).catch(error => {
-      console.error(`Background task execution failed for task ${task.id}:`, error);
+    // バックグラウンドで統合検索を実行開始
+    executeUnifiedTaskInBackground(task.id, cleanJanCode).catch(error => {
+      console.error(`Background unified task execution failed for task ${task.id}:`, error);
     });
 
     // タスク作成の成功レスポンスを即座に返す
@@ -500,7 +262,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error creating search task:', error);
+    console.error('Error creating unified search task:', error);
     return NextResponse.json(
       { error: 'タスクの作成中にエラーが発生しました: ' + (error as Error).message },
       { status: 500 }
@@ -508,8 +270,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// バックグラウンドでタスクを実行する関数（Vercel対応版）
-async function executeTaskInBackground(taskId: string, janCode: string) {
+// バックグラウンドで統合検索タスクを実行する関数
+async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
   try {
     // タスクを実行中に更新
     await supabase
@@ -520,20 +282,20 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         processing_logs: [
           {
             timestamp: new Date().toISOString(),
-            step: 'search_started',
+            step: 'unified_search_started',
             status: 'info',
-            message: 'Vercel環境での高速検索を開始しました（タイムアウト対策版）'
+            message: '統合検索エンジンによる検索を開始しました（Yahoo Shopping + メルカリ + eBay）'
           }
         ]
       })
       .eq('id', taskId);
 
-    console.log(`Starting Vercel-optimized search for task ${taskId}, JAN: ${janCode}`);
+    console.log(`Starting unified search for task ${taskId}, JAN: ${janCode}`);
 
-    // Vercelの制限に対応した高速検索（5秒以内で完了）
-    const searchResult = await executeJanSearch(janCode);
+    // 統合検索を実行
+    const searchResult = await executeUnifiedJanSearch(janCode);
     
-    console.log(`Vercel search completed for task ${taskId}. Found ${searchResult.finalResults.length} results`);
+    console.log(`Unified search completed for task ${taskId}. Found ${searchResult.finalResults.length} results`);
 
     // タスクを完了状態に更新
     await supabase
@@ -553,9 +315,9 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         processing_logs: [
           {
             timestamp: new Date().toISOString(),
-            step: 'search_completed',
+            step: 'unified_search_completed',
             status: 'success',
-            message: `Vercel環境での検索が完了しました（${searchResult.finalResults.length}件の結果）`
+            message: `統合検索が完了しました（${searchResult.finalResults.length}件の結果）- Yahoo: ${searchResult.summary.platformCounts.yahoo_shopping}件, メルカリ: ${searchResult.summary.platformCounts.mercari}件, eBay: ${searchResult.summary.platformCounts.ebay}件`
           }
         ]
       })
@@ -571,27 +333,28 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         item_image_url: result.item_image_url || '',
         base_price: result.price || 0,
         shipping_fee: result.shipping_cost || 0,
+        total_price: result.total_price || 0,
         item_condition: result.condition || '',
         seller_name: result.seller || ''
       }));
 
-      console.log(`Inserting ${resultsData.length} search results into search_results table for task ${taskId}`);
+      console.log(`Inserting ${resultsData.length} unified search results into search_results table for task ${taskId}`);
       
       const { error: insertError } = await supabase
         .from('search_results')
         .insert(resultsData);
         
       if (insertError) {
-        console.error(`Error inserting search results for task ${taskId}:`, insertError);
+        console.error(`Error inserting unified search results for task ${taskId}:`, insertError);
       } else {
-        console.log(`Successfully inserted ${resultsData.length} search results for task ${taskId}`);
+        console.log(`Successfully inserted ${resultsData.length} unified search results for task ${taskId}`);
       }
     }
 
-    console.log(`Vercel search task ${taskId} completed successfully`);
+    console.log(`Unified search task ${taskId} completed successfully`);
 
   } catch (error) {
-    console.error(`Error executing Vercel task ${taskId}:`, error);
+    console.error(`Error executing unified task ${taskId}:`, error);
     
     // タスクを失敗状態に更新
     await supabase
@@ -603,9 +366,9 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         processing_logs: [
           {
             timestamp: new Date().toISOString(),
-            step: 'search_failed',
+            step: 'unified_search_failed',
             status: 'error',
-            message: `Vercel環境での検索に失敗しました: ${(error as Error).message}`
+            message: `統合検索に失敗しました: ${(error as Error).message}`
           }
         ]
       })
