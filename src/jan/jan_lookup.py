@@ -171,7 +171,7 @@ class JANLookupClient:
 
 def get_product_name_from_jan(jan_code: str) -> Optional[str]:
     """
-    JANコードから商品名を取得する簡易関数
+    JANコードから商品名を取得する関数
     
     Args:
         jan_code: JANコード
@@ -179,18 +179,7 @@ def get_product_name_from_jan(jan_code: str) -> Optional[str]:
     Returns:
         商品名、見つからない場合はNone
     """
-    # 既知のJANコードのマッピング（デモ用）
-    jan_mapping = {
-        "4549995548587": "MacBook Pro 14インチ",  # より検索しやすい商品名
-        "4901777300446": "サントリー 緑茶 伊右衛門 600ml ペット",
-        "4902370548501": "商品 (JANコード: 4902370548501)"  # 不明な商品の場合
-    }
-    
-    # マッピングから取得
-    if jan_code in jan_mapping:
-        return jan_mapping[jan_code]
-    
-    # 実際のAPIを使用する場合（環境変数が設定されている場合）
+    # 実際のAPIを使用してJANコードから商品名を取得
     try:
         from ..utils.config import get_config
         app_id = get_config("JAN_LOOKUP_APP_ID", "")
@@ -200,14 +189,18 @@ def get_product_name_from_jan(jan_code: str) -> Optional[str]:
             product_data = client.lookup_product(jan_code)
             if product_data:
                 product_name = product_data.get('product_name', '')
-                # 商品名を検索しやすい形に簡略化
-                simplified_name = _simplify_product_name(product_name)
-                return simplified_name if simplified_name else product_name
+                if product_name:
+                    # 商品名を検索しやすい形に簡略化
+                    simplified_name = _simplify_product_name(product_name)
+                    return simplified_name if simplified_name else product_name
+                    
+        logger.warning(f"No product found for JAN code {jan_code} via API")
+        
     except Exception as e:
-        logger.warning(f"Failed to lookup JAN code {jan_code} via API: {e}")
+        logger.error(f"Failed to lookup JAN code {jan_code} via API: {e}")
     
-    # デフォルトの商品名を返す
-    return f"商品 (JANコード: {jan_code})"
+    # APIで取得できない場合はNoneを返す（ハードコーディングなし）
+    return None
 
 
 def _simplify_product_name(product_name: str) -> str:
