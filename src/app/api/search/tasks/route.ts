@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import UnifiedJanSearchEngine from '../../../../jan/unified_search_engine';
+import UnifiedJanSearchEngineFixed from '../../../../jan/unified_search_engine_fixed';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -55,7 +55,7 @@ async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse>
     
     // 統合検索エンジンのインスタンスを作成
     console.log(`[UNIFIED] Creating UnifiedJanSearchEngine instance...`);
-    const searchEngine = new UnifiedJanSearchEngine();
+    const searchEngine = new UnifiedJanSearchEngineFixed();
     console.log(`[UNIFIED] UnifiedJanSearchEngine instance created successfully`);
     
     // 統合検索を実行
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
     console.log(`[ROUTE] Creating UnifiedJanSearchEngine instance...`);
     let searchEngine;
     try {
-      searchEngine = new UnifiedJanSearchEngine();
+      searchEngine = new UnifiedJanSearchEngineFixed();
       console.log(`[ROUTE] UnifiedJanSearchEngine instance created successfully`);
     } catch (error) {
       console.error(`[ROUTE] Failed to create UnifiedJanSearchEngine:`, error);
