@@ -1028,3 +1028,27 @@ class MercariClient:
             return []
         finally:
             self._close_driver()
+
+
+if __name__ == "__main__":
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("Usage: python mercari.py <search_query> [limit]")
+        sys.exit(1)
+    
+    search_query = sys.argv[1]
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+    
+    try:
+        from .mercari_simple import MercariSimpleClient
+        client = MercariSimpleClient()
+        results = client.search_active_items(search_query, limit)
+        
+        # JSON形式で出力
+        import json
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+        
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)

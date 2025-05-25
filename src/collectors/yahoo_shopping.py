@@ -18,10 +18,11 @@ class YahooShoppingClient:
         YahooShoppingClientを初期化します。
         環境変数から認証情報を読み込みます。
         """
-        # 旧環境変数 YAHOO_APP_ID との互換性を保つため、
-        # YAHOO_SHOPPING_APP_ID が未設定の場合は YAHOO_APP_ID を使用する
-        self.app_id = get_optional_config("YAHOO_SHOPPING_APP_ID") or \
-            get_optional_config("YAHOO_APP_ID")
+        # 環境変数から App ID を取得
+        self.app_id = get_config("YAHOO_SHOPPING_APP_ID", required=False)
+        if not self.app_id:
+            # フォールバック: 旧環境変数名も試す
+            self.app_id = get_config("YAHOO_APP_ID", required=False)
         self.base_url = "https://shopping.yahooapis.jp/ShoppingWebService/V3"
         self.headers = {
             "User-Agent": get_optional_config("USER_AGENT", "RecordCollector/1.0")
@@ -90,12 +91,24 @@ class YahooShoppingClient:
         try:
             response = self._make_request(endpoint, params)
             
-            # レスポンス構造を確認
-            if "hits" not in response:
-                print(f"Unexpected response structure: {response}")
+            # レスポンス構造を確認（複数の可能性に対応）
+            items = []
+            if "hits" in response:
+                items = response["hits"]
+            elif "ResultSet" in response and "Result" in response["ResultSet"]:
+                items = response["ResultSet"]["Result"]
+            elif "Result" in response:
+                items = response["Result"]
+            else:
+                print(f"Unexpected response structure: {list(response.keys())}")
                 return []
             
-            items = response["hits"]
+            # itemsが辞書の場合はリストに変換
+            if isinstance(items, dict):
+                items = [items]
+            elif not isinstance(items, list):
+                print(f"Items is not a list or dict: {type(items)}")
+                return []
             
             # 必要なデータを抽出
             results = []

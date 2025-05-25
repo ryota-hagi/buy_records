@@ -22,9 +22,9 @@ class EbayClient:
         self.app_id = get_config("EBAY_APP_ID")
         self.cert_id = get_config("EBAY_CERT_ID")
         self.client_secret = get_config("EBAY_CLIENT_SECRET")
-        self.redirect_uri = get_config("EBAY_REDIRECT_URI")
-        self.scope = get_config("EBAY_SCOPE")
-        self.environment = get_config("EBAY_ENVIRONMENT", "SANDBOX")
+        self.user_token = get_config("EBAY_USER_TOKEN")
+        self.token_expiry_str = get_config("EBAY_TOKEN_EXPIRY")
+        self.environment = get_config("EBAY_ENVIRONMENT", "PRODUCTION")
         
         # 環境に応じたエンドポイント設定
         if self.environment == "PRODUCTION":
@@ -34,21 +34,35 @@ class EbayClient:
             self.auth_url = "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
             self.api_url = "https://api.sandbox.ebay.com"
         
-        self.access_token = None
+        # User Tokenの有効期限をチェック
         self.token_expiry = None
+        if self.token_expiry_str:
+            try:
+                from datetime import datetime
+                self.token_expiry = datetime.fromisoformat(self.token_expiry_str.replace('Z', '+00:00'))
+            except:
+                print(f"Warning: Invalid token expiry format: {self.token_expiry_str}")
+        
+        self.access_token = None
         self.delay = float(get_config("REQUEST_DELAY", "1.0"))
     
     def _get_access_token(self) -> str:
         """
-        OAuth2アクセストークンを取得します。
-        Client Credentialsフローを使用します。
+        User Tokenまたは新しいアクセストークンを取得します。
         
         Returns:
             str: アクセストークン
         """
-        # トークンが有効な場合は再利用
+        # User Tokenが設定されている場合は常にそれを使用
+        if self.user_token:
+            print("Using User Token")
+            return self.user_token
+        
+        # User Tokenがない場合はClient Credentialsフローを使用
         if self.access_token and self.token_expiry and datetime.now() < self.token_expiry:
             return self.access_token
+        
+        print("Getting new access token using Client Credentials flow")
         
         # クライアント認証情報
         credentials = f"{self.app_id}:{self.client_secret}"
@@ -64,16 +78,25 @@ class EbayClient:
             "scope": "https://api.ebay.com/oauth/api_scope"
         }
         
-        response = requests.post(self.auth_url, headers=headers, data=payload)
-        response.raise_for_status()
-        
-        token_data = response.json()
-        self.access_token = token_data["access_token"]
-        # トークン有効期限を設定（少し余裕を持たせる）
-        expires_in = token_data["expires_in"] - 60  # 1分早めに期限切れとする
-        self.token_expiry = datetime.now() + timedelta(seconds=expires_in)
-        
-        return self.access_token
+        try:
+            response = requests.post(self.auth_url, headers=headers, data=payload)
+            response.raise_for_status()
+            
+            token_data = response.json()
+            self.access_token = token_data["access_token"]
+            # トークン有効期限を設定（少し余裕を持たせる）
+            expires_in = token_data["expires_in"] - 60  # 1分早めに期限切れとする
+            self.token_expiry = datetime.now() + timedelta(seconds=expires_in)
+            
+            print(f"Successfully obtained new access token, expires in {expires_in} seconds")
+            return self.access_token
+        except Exception as e:
+            print(f"Failed to get access token: {str(e)}")
+            # User Tokenがある場合はフォールバックとして使用
+            if self.user_token:
+                print("Falling back to User Token despite expiry")
+                return self.user_token
+            raise
     
     def _make_request(self, endpoint: str, params: Dict = None, max_retries: int = 3) -> Dict[str, Any]:
         """
