@@ -365,13 +365,13 @@ async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
         const mappedResult = {
           task_id: taskId,
           platform: result.platform || 'unknown',
-          item_title: result.item_title || '',
-          item_url: result.item_url || '',
-          item_image_url: result.item_image_url || '',
-          base_price: result.price || 0,
-          shipping_fee: result.shipping_cost || 0,
+          title: result.item_title || '',
+          url: result.item_url || '',
+          image_url: result.item_image_url || '',
+          item_price: result.price || 0,
+          shipping_cost: result.shipping_cost || 0,
           total_price: result.total_price || 0,
-          item_condition: result.condition || '',
+          condition: result.condition || '',
           seller_name: result.seller || ''
         };
         
