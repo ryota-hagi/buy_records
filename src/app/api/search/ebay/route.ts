@@ -14,7 +14,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const appId = process.env.EBAY_APP_ID;
+    // EBAY_APP_ID が未設定の場合、EBAY_CLIENT_ID や旧 EBAY_APPID を参照
+    const appId =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID;
     
     if (!appId) {
       return NextResponse.json(

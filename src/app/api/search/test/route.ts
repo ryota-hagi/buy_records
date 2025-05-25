@@ -3,7 +3,11 @@ import axios from 'axios';
 
 // 環境変数からAPIキーを取得
 const TEST_YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
-const TEST_EBAY_APP_ID = process.env.EBAY_APP_ID || '';
+const TEST_EBAY_APP_ID =
+  process.env.EBAY_APP_ID ||
+  process.env.EBAY_CLIENT_ID ||
+  (process.env as any).EBAY_APPID ||
+  '';
 
 export async function POST(request: NextRequest) {
   try {

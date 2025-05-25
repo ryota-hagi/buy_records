@@ -19,7 +19,12 @@ class EbayClient:
         EbayClientを初期化します。
         環境変数から認証情報を読み込みます。
         """
-        self.app_id = get_config("EBAY_APP_ID")
+        # EBAY_APP_ID が未設定の場合、EBAY_CLIENT_ID や旧 EBAY_APPID を参照
+        self.app_id = (
+            get_config("EBAY_APP_ID", None)
+            or get_config("EBAY_CLIENT_ID", None)
+            or get_config("EBAY_APPID", None)
+        )
         self.cert_id = get_config("EBAY_CERT_ID")
         self.client_secret = get_config("EBAY_CLIENT_SECRET")
         self.redirect_uri = get_config("EBAY_REDIRECT_URI")
