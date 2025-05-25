@@ -107,7 +107,10 @@ export async function GET(
       } : null
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json({
+      success: true,
+      task: response
+    });
 
   } catch (error) {
     console.error('Error fetching task details:', error);
