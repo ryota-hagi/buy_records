@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { UnifiedJanSearchEngineSimple } from '../../../../jan/unified_search_engine_simple';
 
 // Supabaseクライアント初期化
 const supabase = createClient(
@@ -8,10 +9,10 @@ const supabase = createClient(
 );
 
 /**
- * シンプル版タスク作成API - 統合検索エンジンを使わない基本実装
+ * 統合検索エンジン使用版タスク作成API
  */
 export async function POST(request: NextRequest) {
-  console.log('[TASK_CREATE_SIMPLE] POST request received');
+  console.log('[TASK_CREATE] POST request received');
   
   let body: any;
   
@@ -19,9 +20,9 @@ export async function POST(request: NextRequest) {
     // リクエストボディの安全な解析
     try {
       body = await request.json();
-      console.log('[TASK_CREATE_SIMPLE] Request body parsed:', body);
+      console.log('[TASK_CREATE] Request body parsed:', body);
     } catch (parseError) {
-      console.error('[TASK_CREATE_SIMPLE] JSON parse error:', parseError);
+      console.error('[TASK_CREATE] JSON parse error:', parseError);
       return NextResponse.json({
         success: false,
         error: 'リクエストボディの解析に失敗しました'
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // JANコードのバリデーション
     if (!jan_code || typeof jan_code !== 'string') {
-      console.error('[TASK_CREATE_SIMPLE] Invalid JAN code:', jan_code);
+      console.error('[TASK_CREATE] Invalid JAN code:', jan_code);
       return NextResponse.json({
         success: false,
         error: 'JANコードが必要です'
@@ -41,17 +42,40 @@ export async function POST(request: NextRequest) {
 
     const cleanJanCode = jan_code.trim().replace(/[^0-9]/g, '');
     if (cleanJanCode.length !== 13 && cleanJanCode.length !== 8) {
-      console.error('[TASK_CREATE_SIMPLE] Invalid JAN code length:', cleanJanCode.length);
+      console.error('[TASK_CREATE] Invalid JAN code length:', cleanJanCode.length);
       return NextResponse.json({
         success: false,
         error: 'JANコードは8桁または13桁の数字である必要があります'
       }, { status: 400 });
     }
 
-    console.log('[TASK_CREATE_SIMPLE] Creating task for JAN code:', cleanJanCode);
+    console.log('[TASK_CREATE] Creating task for JAN code:', cleanJanCode);
 
-    // シンプルなタスク作成（統合検索エンジンを使わない）
-    const taskName = `商品検索 (JANコード: ${cleanJanCode})`;
+    // 統合検索エンジンを使用してタスク名を取得
+    let taskName = `商品検索 (JANコード: ${cleanJanCode})`;
+    
+    try {
+      console.log('[TASK_CREATE] Attempting to get product name from unified search engine');
+      const searchEngine = new UnifiedJanSearchEngineSimple();
+      
+      // 10秒タイムアウトで商品名取得を試行
+      const productNamePromise = searchEngine.executeUnifiedJanSearch(cleanJanCode);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Product name fetch timeout')), 10000)
+      );
+      
+      const unifiedResult = await Promise.race([productNamePromise, timeoutPromise]) as any;
+      
+      if (unifiedResult?.success && unifiedResult?.product_name) {
+        taskName = unifiedResult.product_name;
+        console.log('[TASK_CREATE] Product name obtained from unified search:', taskName);
+      } else {
+        console.log('[TASK_CREATE] Using default task name due to unified search failure');
+      }
+    } catch (error) {
+      console.warn('[TASK_CREATE] Failed to get product name from unified search:', error);
+      // フォールバック: デフォルト名を使用
+    }
     
     // Supabaseにタスクを作成
     const { data: task, error: insertError } = await supabase
@@ -69,19 +93,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('[TASK_CREATE_SIMPLE] Database insert error:', insertError);
+      console.error('[TASK_CREATE] Database insert error:', insertError);
       return NextResponse.json({
         success: false,
         error: 'タスクの作成に失敗しました'
       }, { status: 500 });
     }
 
-    console.log('[TASK_CREATE_SIMPLE] Task created successfully:', task.id);
+    console.log('[TASK_CREATE] Task created successfully:', task.id);
 
-    // バックグラウンドでシンプル検索を実行
+    // バックグラウンドで統合検索エンジンを使用した検索を実行
     setImmediate(async () => {
       try {
-        console.log('[TASK_CREATE_SIMPLE] Starting background search for task:', task.id);
+        console.log('[TASK_CREATE] Starting background unified search for task:', task.id);
         
         // タスクステータスを実行中に更新
         await supabase
@@ -92,22 +116,33 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', task.id);
 
-        // シンプルな検索結果（モックデータではなく、基本的な検索）
+        // 統合検索エンジンを使用した実際の検索
+        const searchEngine = new UnifiedJanSearchEngineSimple();
+        console.log('[TASK_CREATE] Executing unified search with engine');
+        
+        const unifiedResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+        console.log('[TASK_CREATE] Unified search completed:', {
+          success: unifiedResult.success,
+          totalResults: unifiedResult.total_results,
+          finalCount: unifiedResult.final_results?.length || 0
+        });
+
+        // 統合検索結果をタスク結果形式に変換
         const searchResults = {
           integrated_results: {
-            count: 0,
-            items: []
+            count: unifiedResult.final_results?.length || 0,
+            items: unifiedResult.final_results || []
           },
-          platform_results: {
+          platform_results: unifiedResult.platform_results || {
             yahoo_shopping: [],
             mercari: [],
             ebay: []
           },
-          summary: {
+          summary: unifiedResult.summary || {
             total_found: 0,
             after_deduplication: 0,
             final_count: 0,
-            execution_time_ms: 1000
+            execution_time_ms: 0
           }
         };
 
@@ -122,10 +157,10 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', task.id);
 
-        console.log('[TASK_CREATE_SIMPLE] Background search completed for task:', task.id);
+        console.log('[TASK_CREATE] Background unified search completed for task:', task.id);
 
       } catch (backgroundError) {
-        console.error('[TASK_CREATE_SIMPLE] Background search error:', backgroundError);
+        console.error('[TASK_CREATE] Background unified search error:', backgroundError);
         
         // エラー時のタスク更新
         await supabase
@@ -152,7 +187,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[TASK_CREATE_SIMPLE] Unexpected error:', error);
+    console.error('[TASK_CREATE] Unexpected error:', error);
     return NextResponse.json({
       success: false,
       error: 'サーバーエラーが発生しました'
@@ -164,7 +199,7 @@ export async function POST(request: NextRequest) {
  * タスク一覧取得
  */
 export async function GET() {
-  console.log('[TASK_CREATE_SIMPLE] GET request received');
+  console.log('[TASK_CREATE] GET request received');
   
   try {
     const { data: tasks, error } = await supabase
@@ -174,14 +209,14 @@ export async function GET() {
       .limit(10);
 
     if (error) {
-      console.error('[TASK_CREATE_SIMPLE] Database select error:', error);
+      console.error('[TASK_CREATE] Database select error:', error);
       return NextResponse.json({
         success: false,
         error: 'タスクの取得に失敗しました'
       }, { status: 500 });
     }
 
-    console.log('[TASK_CREATE_SIMPLE] Retrieved tasks:', tasks?.length || 0);
+    console.log('[TASK_CREATE] Retrieved tasks:', tasks?.length || 0);
 
     return NextResponse.json({
       success: true,
@@ -189,7 +224,7 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('[TASK_CREATE_SIMPLE] Unexpected error:', error);
+    console.error('[TASK_CREATE] Unexpected error:', error);
     return NextResponse.json({
       success: false,
       error: 'サーバーエラーが発生しました'
