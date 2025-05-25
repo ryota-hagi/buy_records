@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import UnifiedJanSearchEngineSimple from '../../../../jan/unified_search_engine_simple';
+import { UnifiedJanSearchEngineSimple } from '../../../../jan/unified_search_engine_simple';
 
 // 検索結果の型定義
 interface SearchResult {
