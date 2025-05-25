@@ -51,18 +51,25 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse> {
   try {
     console.log(`[UNIFIED] Starting unified JAN search for: ${janCode}`);
+    console.log(`[UNIFIED] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
     
     // 統合検索エンジンのインスタンスを作成
+    console.log(`[UNIFIED] Creating UnifiedJanSearchEngine instance...`);
     const searchEngine = new UnifiedJanSearchEngine();
+    console.log(`[UNIFIED] UnifiedJanSearchEngine instance created successfully`);
     
     // 統合検索を実行
+    console.log(`[UNIFIED] Executing unified search...`);
     const unifiedResult = await searchEngine.executeUnifiedJanSearch(janCode);
+    console.log(`[UNIFIED] Unified search result:`, JSON.stringify(unifiedResult, null, 2));
     
     if (!unifiedResult.success) {
+      console.error(`[UNIFIED] Search failed - success: false`);
       throw new Error('統合検索エンジンの実行に失敗しました');
     }
     
     console.log(`[UNIFIED] Search completed: ${unifiedResult.final_results.length} final results`);
+    console.log(`[UNIFIED] Platform results - Yahoo: ${unifiedResult.platform_results.yahoo_shopping.length}, eBay: ${unifiedResult.platform_results.ebay.length}, Mercari: ${unifiedResult.platform_results.mercari.length}`);
     
     // レスポンス形式を既存の形式に合わせて変換
     const response: SearchResponse = {
@@ -92,6 +99,7 @@ async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse>
     
   } catch (error) {
     console.error('[UNIFIED] Error executing unified JAN search:', error);
+    console.error('[UNIFIED] Error stack:', (error as Error).stack);
     throw new Error(`統合検索の実行に失敗しました: ${(error as Error).message}`);
   }
 }
