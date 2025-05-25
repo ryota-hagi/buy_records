@@ -45,6 +45,12 @@ export class UnifiedJanSearchEngine {
     this.GOOGLE_TRANSLATE_API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
     this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
     this.EBAY_APP_ID = process.env.EBAY_APP_ID || '';
+    
+    // 環境変数の状況をログ出力
+    console.log(`[UNIFIED_ENGINE] Environment variables status:`);
+    console.log(`[UNIFIED_ENGINE] - YAHOO_SHOPPING_APP_ID: ${!!this.YAHOO_SHOPPING_APP_ID} (length: ${this.YAHOO_SHOPPING_APP_ID.length})`);
+    console.log(`[UNIFIED_ENGINE] - EBAY_APP_ID: ${!!this.EBAY_APP_ID} (length: ${this.EBAY_APP_ID.length})`);
+    console.log(`[UNIFIED_ENGINE] - GOOGLE_TRANSLATE_API_KEY: ${!!this.GOOGLE_TRANSLATE_API_KEY} (length: ${this.GOOGLE_TRANSLATE_API_KEY.length})`);
   }
 
   /**
@@ -210,6 +216,9 @@ export class UnifiedJanSearchEngine {
         timeout: 8000
       });
 
+      console.log(`[YAHOO] API response status: ${response.status}`);
+      console.log(`[YAHOO] API response data:`, JSON.stringify(response.data, null, 2));
+
       const items = response.data?.hits || [];
       console.log(`[YAHOO] Found ${items.length} items`);
       
@@ -280,6 +289,9 @@ export class UnifiedJanSearchEngine {
         },
         timeout: 8000
       });
+
+      console.log(`[EBAY] API response status: ${response.status}`);
+      console.log(`[EBAY] API response data:`, JSON.stringify(response.data, null, 2));
 
       const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
       console.log(`[EBAY] Found ${items.length} items`);
