@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import UnifiedJanSearchEngineFixed from '../../../../jan/unified_search_engine_fixed';
+import UnifiedJanSearchEngineFinal from '../../../../jan/unified_search_engine_final';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -47,29 +47,29 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 統合JANコード検索を実行する関数（統合検索エンジン使用）
+// 統合JANコード検索を実行する関数（最終版統合検索エンジン使用）
 async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse> {
   try {
-    console.log(`[UNIFIED] Starting unified JAN search for: ${janCode}`);
-    console.log(`[UNIFIED] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
+    console.log(`[UNIFIED_FINAL] Starting unified JAN search for: ${janCode}`);
+    console.log(`[UNIFIED_FINAL] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
     
     // 統合検索エンジンのインスタンスを作成
-    console.log(`[UNIFIED] Creating UnifiedJanSearchEngine instance...`);
-    const searchEngine = new UnifiedJanSearchEngineFixed();
-    console.log(`[UNIFIED] UnifiedJanSearchEngine instance created successfully`);
+    console.log(`[UNIFIED_FINAL] Creating UnifiedJanSearchEngineFinal instance...`);
+    const searchEngine = new UnifiedJanSearchEngineFinal();
+    console.log(`[UNIFIED_FINAL] UnifiedJanSearchEngineFinal instance created successfully`);
     
     // 統合検索を実行
-    console.log(`[UNIFIED] Executing unified search...`);
+    console.log(`[UNIFIED_FINAL] Executing unified search...`);
     const unifiedResult = await searchEngine.executeUnifiedJanSearch(janCode);
-    console.log(`[UNIFIED] Unified search result:`, JSON.stringify(unifiedResult, null, 2));
+    console.log(`[UNIFIED_FINAL] Unified search result:`, JSON.stringify(unifiedResult, null, 2));
     
     if (!unifiedResult.success) {
-      console.error(`[UNIFIED] Search failed - success: false`);
+      console.error(`[UNIFIED_FINAL] Search failed - success: false`);
       throw new Error('統合検索エンジンの実行に失敗しました');
     }
     
-    console.log(`[UNIFIED] Search completed: ${unifiedResult.final_results.length} final results`);
-    console.log(`[UNIFIED] Platform results - Yahoo: ${unifiedResult.platform_results.yahoo_shopping.length}, eBay: ${unifiedResult.platform_results.ebay.length}, Mercari: ${unifiedResult.platform_results.mercari.length}`);
+    console.log(`[UNIFIED_FINAL] Search completed: ${unifiedResult.final_results.length} final results`);
+    console.log(`[UNIFIED_FINAL] Platform results - Yahoo: ${unifiedResult.platform_results.yahoo_shopping.length}, eBay: ${unifiedResult.platform_results.ebay.length}, Mercari: ${unifiedResult.platform_results.mercari.length}`);
     
     // レスポンス形式を既存の形式に合わせて変換
     const response: SearchResponse = {
@@ -94,14 +94,27 @@ async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse>
       }
     };
     
-    console.log(`[UNIFIED] Response prepared: ${response.finalResults.length} items`);
+    console.log(`[UNIFIED_FINAL] Response prepared: ${response.finalResults.length} items`);
     return response;
     
   } catch (error) {
-    console.error('[UNIFIED] Error executing unified JAN search:', error);
-    console.error('[UNIFIED] Error stack:', (error as Error).stack);
+    console.error('[UNIFIED_FINAL] Error executing unified JAN search:', error);
+    console.error('[UNIFIED_FINAL] Error stack:', (error as Error).stack);
     throw new Error(`統合検索の実行に失敗しました: ${(error as Error).message}`);
   }
+}
+
+// 重複除去関数
+function removeDuplicates(results: SearchResult[]): SearchResult[] {
+  const seen = new Set<string>();
+  return results.filter((item) => {
+    const key = `${item.platform}-${item.item_title.toLowerCase()}-${item.price}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 // GET: タスク一覧を取得
@@ -145,7 +158,7 @@ export async function GET(request: NextRequest) {
           .from('search_results')
           .select('*')
           .eq('task_id', task.id)
-          .order('total_price', { ascending: true });
+          .order('created_at', { ascending: true });
 
         if (resultsError) {
           console.error('Error fetching results for task', task.id, ':', resultsError);
@@ -188,7 +201,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: 新しい検索タスクを作成（統合検索エンジン使用）
+// POST: 新しい検索タスクを作成（最終版統合検索エンジン使用）
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -213,13 +226,13 @@ export async function POST(request: NextRequest) {
     console.log(`Creating unified search task for JAN code: ${cleanJanCode}`);
 
     // まず商品名のみを取得（軽量な処理）
-    console.log(`[ROUTE] Creating UnifiedJanSearchEngine instance...`);
+    console.log(`[ROUTE] Creating UnifiedJanSearchEngineFinal instance...`);
     let searchEngine;
     try {
-      searchEngine = new UnifiedJanSearchEngineFixed();
-      console.log(`[ROUTE] UnifiedJanSearchEngine instance created successfully`);
+      searchEngine = new UnifiedJanSearchEngineFinal();
+      console.log(`[ROUTE] UnifiedJanSearchEngineFinal instance created successfully`);
     } catch (error) {
-      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngine:`, error);
+      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngineFinal:`, error);
       throw error;
     }
     
@@ -254,7 +267,7 @@ export async function POST(request: NextRequest) {
           timestamp: new Date().toISOString(),
           step: 'task_created',
           status: 'info',
-          message: 'タスクが作成されました（統合検索エンジン版）'
+          message: 'タスクが作成されました（最終版統合検索エンジン）'
         }
       ],
       created_at: new Date().toISOString(),
@@ -317,7 +330,7 @@ async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'unified_search_started',
             status: 'info',
-            message: '統合検索エンジンによる検索を開始しました（Yahoo Shopping + メルカリ + eBay）'
+            message: '最終版統合検索エンジンによる検索を開始しました（Yahoo Shopping + メルカリ + eBay）'
           }
         ]
       })
