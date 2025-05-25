@@ -226,8 +226,7 @@ export class UnifiedJanSearchEngine {
             appid: this.YAHOO_SHOPPING_APP_ID,
             jan_code: janCode,
             results: limit,
-            sort: 'price',
-            output: 'json'
+            sort: 'price'
           },
           timeout: 8000
         });
@@ -239,8 +238,7 @@ export class UnifiedJanSearchEngine {
             appid: this.YAHOO_SHOPPING_APP_ID,
             query: productName,
             results: limit,
-            sort: 'price',
-            output: 'json'
+            sort: 'price'
           },
           timeout: 8000
         });
