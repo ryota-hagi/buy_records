@@ -213,17 +213,32 @@ export async function POST(request: NextRequest) {
     console.log(`Creating unified search task for JAN code: ${cleanJanCode}`);
 
     // まず商品名のみを取得（軽量な処理）
-    const searchEngine = new UnifiedJanSearchEngine();
+    console.log(`[ROUTE] Creating UnifiedJanSearchEngine instance...`);
+    let searchEngine;
+    try {
+      searchEngine = new UnifiedJanSearchEngine();
+      console.log(`[ROUTE] UnifiedJanSearchEngine instance created successfully`);
+    } catch (error) {
+      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngine:`, error);
+      throw error;
+    }
+    
     let productName = `商品 (JANコード: ${cleanJanCode})`;
     
     try {
+      console.log(`[ROUTE] Attempting to get product name for JAN: ${cleanJanCode}`);
       // 商品名取得のみの軽量処理
       const tempResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+      console.log(`[ROUTE] Product name search result:`, tempResult);
       if (tempResult.success && tempResult.product_name) {
         productName = tempResult.product_name;
+        console.log(`[ROUTE] Product name obtained: ${productName}`);
+      } else {
+        console.warn(`[ROUTE] Product name search failed or returned no name`);
       }
     } catch (error) {
-      console.warn('Product name fetch failed, using default name:', error);
+      console.error('[ROUTE] Product name fetch failed:', error);
+      console.error('[ROUTE] Error stack:', (error as Error).stack);
     }
 
     // タスクをデータベースに作成（pending状態）
