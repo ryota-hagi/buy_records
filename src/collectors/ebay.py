@@ -9,7 +9,7 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import base64
-from ..utils.config import get_config
+from ..utils.config import get_config, get_optional_config
 
 class EbayClient:
     """eBay APIと通信するクライアントクラス"""
@@ -19,7 +19,12 @@ class EbayClient:
         EbayClientを初期化します。
         環境変数から認証情報を読み込みます。
         """
-        self.app_id = get_config("EBAY_APP_ID")
+        # EBAY_CLIENT_ID や旧 EBAY_APPID もフォールバックとして参照
+        self.app_id = (
+            get_optional_config("EBAY_APP_ID")
+            or get_optional_config("EBAY_CLIENT_ID")
+            or get_optional_config("EBAY_APPID")
+        )
         self.cert_id = get_config("EBAY_CERT_ID")
         self.client_secret = get_config("EBAY_CLIENT_SECRET")
         self.redirect_uri = get_config("EBAY_REDIRECT_URI")

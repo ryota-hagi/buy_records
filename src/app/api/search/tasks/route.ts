@@ -51,7 +51,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse> {
   try {
     console.log(`[UNIFIED] Starting unified JAN search for: ${janCode}`);
-    console.log(`[UNIFIED] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
+    const fallbackEbayId =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID;
+    console.log(
+      `[UNIFIED] Environment check - EBAY_APP_ID: ${!!fallbackEbayId}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`
+    );
     
     // 統合検索エンジンのインスタンスを作成
     console.log(`[UNIFIED] Creating UnifiedJanSearchEngine instance...`);

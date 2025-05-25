@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const appId = process.env.EBAY_APP_ID;
+    const appId =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID;
     
     if (!appId) {
       return NextResponse.json(

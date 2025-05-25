@@ -50,7 +50,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function executeFallbackJanSearch(janCode: string): Promise<SearchResponse> {
   try {
     console.log(`[FALLBACK] Starting fallback JAN search for: ${janCode}`);
-    console.log(`[FALLBACK] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
+    const fallbackEbayId =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID;
+    console.log(
+      `[FALLBACK] Environment check - EBAY_APP_ID: ${!!fallbackEbayId}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`
+    );
     
     // 並行して各プラットフォームを検索
     const [yahooResults, ebayResults] = await Promise.all([
@@ -154,7 +160,10 @@ async function searchEbayDirect(janCode: string, limit: number): Promise<SearchR
   try {
     console.log(`[EBAY_DIRECT] Starting eBay search for JAN: ${janCode}`);
     
-    const ebayAppId = process.env.EBAY_APP_ID;
+    const ebayAppId =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID;
     if (!ebayAppId) {
       console.warn('[EBAY_DIRECT] API key not configured');
       return [];

@@ -18,7 +18,10 @@ class YahooShoppingClient:
         YahooShoppingClientを初期化します。
         環境変数から認証情報を読み込みます。
         """
-        self.app_id = get_optional_config("YAHOO_SHOPPING_APP_ID")
+        # 旧環境変数 YAHOO_APP_ID との互換性を保つため、
+        # YAHOO_SHOPPING_APP_ID が未設定の場合は YAHOO_APP_ID を使用する
+        self.app_id = get_optional_config("YAHOO_SHOPPING_APP_ID") or \
+            get_optional_config("YAHOO_APP_ID")
         self.base_url = "https://shopping.yahooapis.jp/ShoppingWebService/V3"
         self.headers = {
             "User-Agent": get_optional_config("USER_AGENT", "RecordCollector/1.0")
