@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import UnifiedJanSearchEngineFinal from '../../../../jan/unified_search_engine_final';
+import UnifiedJanSearchEngineSimple from '../../../../jan/unified_search_engine_simple';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -54,9 +54,9 @@ async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse>
     console.log(`[UNIFIED_FINAL] Environment check - EBAY_APP_ID: ${!!process.env.EBAY_APP_ID}, YAHOO_SHOPPING_APP_ID: ${!!process.env.YAHOO_SHOPPING_APP_ID}`);
     
     // 統合検索エンジンのインスタンスを作成
-    console.log(`[UNIFIED_FINAL] Creating UnifiedJanSearchEngineFinal instance...`);
-    const searchEngine = new UnifiedJanSearchEngineFinal();
-    console.log(`[UNIFIED_FINAL] UnifiedJanSearchEngineFinal instance created successfully`);
+    console.log(`[UNIFIED_SIMPLE] Creating UnifiedJanSearchEngineSimple instance...`);
+    const searchEngine = new UnifiedJanSearchEngineSimple();
+    console.log(`[UNIFIED_SIMPLE] UnifiedJanSearchEngineSimple instance created successfully`);
     
     // 統合検索を実行
     console.log(`[UNIFIED_FINAL] Executing unified search...`);
@@ -229,10 +229,10 @@ export async function POST(request: NextRequest) {
     console.log(`[ROUTE] Creating UnifiedJanSearchEngineFinal instance...`);
     let searchEngine;
     try {
-      searchEngine = new UnifiedJanSearchEngineFinal();
-      console.log(`[ROUTE] UnifiedJanSearchEngineFinal instance created successfully`);
+      searchEngine = new UnifiedJanSearchEngineSimple();
+      console.log(`[ROUTE] UnifiedJanSearchEngineSimple instance created successfully`);
     } catch (error) {
-      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngineFinal:`, error);
+      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngineSimple:`, error);
       throw error;
     }
     
