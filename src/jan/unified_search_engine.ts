@@ -44,7 +44,9 @@ export class UnifiedJanSearchEngine {
   constructor() {
     // 環境変数を取得
     this.GOOGLE_TRANSLATE_API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
-    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
+    // YAHOO_SHOPPING_APP_ID が未設定の場合は YAHOO_APP_ID をフォールバックとして使用
+    this.YAHOO_SHOPPING_APP_ID =
+      process.env.YAHOO_SHOPPING_APP_ID || process.env.YAHOO_APP_ID || '';
     this.EBAY_APP_ID = process.env.EBAY_APP_ID || '';
     
     // 環境変数の状況をログ出力
