@@ -44,8 +44,15 @@ export class UnifiedJanSearchEngine {
   constructor() {
     // 環境変数を取得
     this.GOOGLE_TRANSLATE_API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
-    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
-    this.EBAY_APP_ID = process.env.EBAY_APP_ID || '';
+    // YAHOO_SHOPPING_APP_ID が未設定の場合は YAHOO_APP_ID をフォールバックとして使用
+    this.YAHOO_SHOPPING_APP_ID =
+      process.env.YAHOO_SHOPPING_APP_ID || process.env.YAHOO_APP_ID || '';
+    // EBAY_CLIENT_ID や旧 EBAY_APPID もフォールバックとして参照
+    this.EBAY_APP_ID =
+      process.env.EBAY_APP_ID ||
+      process.env.EBAY_CLIENT_ID ||
+      (process.env as any).EBAY_APPID ||
+      '';
     
     // 環境変数の状況をログ出力
     console.log(`[UNIFIED_ENGINE] Environment variables status:`);

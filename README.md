@@ -48,7 +48,12 @@ SUPABASE_SERVICE_KEY=your_supabase_service_key
 
 # API設定（オプション）
 DISCOGS_TOKEN=your_discogs_token
+# eBay API は EBAY_APP_ID を推奨しますが、
+# 互換性のため EBAY_CLIENT_ID または EBAY_APPID でも利用できます
 EBAY_APP_ID=your_ebay_app_id
+# Yahoo Shopping API は YAHOO_SHOPPING_APP_ID を推奨しますが、
+# 互換性のため YAHOO_APP_ID でも利用可能です
+YAHOO_SHOPPING_APP_ID=your_yahoo_shopping_app_id
 YAHOO_APP_ID=your_yahoo_app_id
 ```
 
