@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-// テスト用のAPIキー（実際の値）
-const TEST_YAHOO_SHOPPING_APP_ID = 'dj00aiZpPVBkdm9nV2F0WTZDVyZzPWNvbnN1bWVyc2VjcmV0Jng9OTk-';
-const TEST_EBAY_APP_ID = 'ariGaT-records-PRD-1a6ee1171-104bfaa4';
+// 環境変数からAPIキーを取得
+const TEST_YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
+const TEST_EBAY_APP_ID = process.env.EBAY_APP_ID || '';
 
 export async function POST(request: NextRequest) {
   try {

@@ -42,10 +42,10 @@ export class UnifiedJanSearchEngine {
   private readonly EBAY_APP_ID: string;
 
   constructor() {
-    // 環境変数を取得、未設定の場合はフォールバック値を使用
+    // 環境変数を取得
     this.GOOGLE_TRANSLATE_API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
-    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || 'dj00aiZpPVBkdm9nV2F0WTZDVyZzPWNvbnN1bWVyc2VjcmV0Jng9OTk-';
-    this.EBAY_APP_ID = process.env.EBAY_APP_ID || 'ariGaT-records-PRD-1a6ee1171-104bfaa4';
+    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
+    this.EBAY_APP_ID = process.env.EBAY_APP_ID || '';
     
     // 環境変数の状況をログ出力
     console.log(`[UNIFIED_ENGINE] Environment variables status:`);
@@ -281,38 +281,11 @@ export class UnifiedJanSearchEngine {
       const mercariSearchUrl = `https://www.mercari.com/jp/search/?keyword=${searchKeyword}&status=on_sale&sort=price_asc`;
       
       console.log(`[MERCARI] Search URL: ${mercariSearchUrl}`);
+      console.log(`[MERCARI] メルカリ検索は現在実装されていません。実際のAPIまたはスクレイピングサービスが必要です。`);
       
-      // 本番環境ではスクレイピングが制限されるため、代替実装
       // 実際のメルカリAPIまたは適切なスクレイピングサービスを使用する必要がある
-      
-      // フォールバック: 模擬データを返す（デバッグ用）
-      const mockResults: SearchResult[] = [
-        {
-          platform: 'mercari',
-          item_title: `${productName} - メルカリ商品1`,
-          item_url: `https://www.mercari.com/jp/items/m12345678901/`,
-          item_image_url: 'https://static.mercdn.net/item/detail/orig/photos/m12345678901_1.jpg',
-          price: 2500,
-          total_price: 2500,
-          shipping_cost: 0,
-          condition: '新品、未使用',
-          seller: 'mercari_seller_1'
-        },
-        {
-          platform: 'mercari',
-          item_title: `${productName} - メルカリ商品2`,
-          item_url: `https://www.mercari.com/jp/items/m12345678902/`,
-          item_image_url: 'https://static.mercdn.net/item/detail/orig/photos/m12345678902_1.jpg',
-          price: 3200,
-          total_price: 3200,
-          shipping_cost: 0,
-          condition: '目立った傷や汚れなし',
-          seller: 'mercari_seller_2'
-        }
-      ];
-      
-      console.log(`[MERCARI] Returning ${mockResults.length} mock results for testing`);
-      return mockResults.slice(0, limit);
+      // 現在は空の結果を返す
+      return [];
 
     } catch (error) {
       console.error('[MERCARI] Search failed:', error);
