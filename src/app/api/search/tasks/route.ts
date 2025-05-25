@@ -1,12 +1,148 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { UnifiedJanSearchEngineSimple } from '../../../lib/unified_search_engine_simple';
 
 // Supabaseクライアント初期化
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// 統合検索エンジンの機能を直接実装
+async function executeUnifiedJanSearch(janCode: string) {
+  console.log(`[UNIFIED_SEARCH] Starting search for JAN: ${janCode}`);
+  
+  const startTime = Date.now();
+  const results = {
+    success: false,
+    product_name: '',
+    total_results: 0,
+    platform_results: {
+      yahoo_shopping: [],
+      mercari: [],
+      ebay: []
+    },
+    final_results: [],
+    summary: {
+      total_found: 0,
+      after_deduplication: 0,
+      final_count: 0,
+      execution_time_ms: 0
+    }
+  };
+
+  try {
+    // 並列でプラットフォーム検索を実行
+    const searchPromises = [
+      searchYahooShopping(janCode),
+      searchMercari(janCode),
+      searchEbay(janCode)
+    ];
+
+    const platformResults = await Promise.allSettled(searchPromises);
+    
+    // Yahoo Shopping結果
+    if (platformResults[0].status === 'fulfilled') {
+      results.platform_results.yahoo_shopping = platformResults[0].value;
+    }
+    
+    // Mercari結果
+    if (platformResults[1].status === 'fulfilled') {
+      results.platform_results.mercari = platformResults[1].value;
+    }
+    
+    // eBay結果
+    if (platformResults[2].status === 'fulfilled') {
+      results.platform_results.ebay = platformResults[2].value;
+    }
+
+    // 結果を統合
+    const allResults = [
+      ...results.platform_results.yahoo_shopping,
+      ...results.platform_results.mercari,
+      ...results.platform_results.ebay
+    ];
+
+    results.total_results = allResults.length;
+    results.final_results = allResults.slice(0, 50); // 最大50件
+    results.summary.total_found = allResults.length;
+    results.summary.final_count = results.final_results.length;
+    results.summary.execution_time_ms = Date.now() - startTime;
+
+    // 商品名を取得（最初に見つかった商品名を使用）
+    if (results.final_results.length > 0) {
+      const firstItem = results.final_results[0] as any;
+      results.product_name = firstItem?.title || firstItem?.name || `商品検索 (JANコード: ${janCode})`;
+    } else {
+      results.product_name = `商品検索 (JANコード: ${janCode})`;
+    }
+
+    results.success = true;
+    console.log(`[UNIFIED_SEARCH] Completed: ${results.final_results.length} results in ${results.summary.execution_time_ms}ms`);
+
+  } catch (error) {
+    console.error('[UNIFIED_SEARCH] Error:', error);
+    results.product_name = `商品検索 (JANコード: ${janCode})`;
+  }
+
+  return results;
+}
+
+// Yahoo Shopping検索
+async function searchYahooShopping(janCode: string) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://buy-records.vercel.app'}/api/search/yahoo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jan_code: janCode, limit: 20 })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.items || [];
+    }
+  } catch (error) {
+    console.error('[YAHOO_SEARCH] Error:', error);
+  }
+  return [];
+}
+
+// Mercari検索
+async function searchMercari(janCode: string) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://buy-records.vercel.app'}/api/search/mercari`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jan_code: janCode, limit: 20 })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.items || [];
+    }
+  } catch (error) {
+    console.error('[MERCARI_SEARCH] Error:', error);
+  }
+  return [];
+}
+
+// eBay検索
+async function searchEbay(janCode: string) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://buy-records.vercel.app'}/api/search/ebay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jan_code: janCode, limit: 20 })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.items || [];
+    }
+  } catch (error) {
+    console.error('[EBAY_SEARCH] Error:', error);
+  }
+  return [];
+}
 
 /**
  * 統合検索エンジン使用版タスク作成API
@@ -56,10 +192,9 @@ export async function POST(request: NextRequest) {
     
     try {
       console.log('[TASK_CREATE] Attempting to get product name from unified search engine');
-      const searchEngine = new UnifiedJanSearchEngineSimple();
       
       // 10秒タイムアウトで商品名取得を試行
-      const productNamePromise = searchEngine.executeUnifiedJanSearch(cleanJanCode);
+      const productNamePromise = executeUnifiedJanSearch(cleanJanCode);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Product name fetch timeout')), 10000)
       );
@@ -117,10 +252,9 @@ export async function POST(request: NextRequest) {
           .eq('id', task.id);
 
         // 統合検索エンジンを使用した実際の検索
-        const searchEngine = new UnifiedJanSearchEngineSimple();
         console.log('[TASK_CREATE] Executing unified search with engine');
         
-        const unifiedResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+        const unifiedResult = await executeUnifiedJanSearch(cleanJanCode);
         console.log('[TASK_CREATE] Unified search completed:', {
           success: unifiedResult.success,
           totalResults: unifiedResult.total_results,
