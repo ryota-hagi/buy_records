@@ -73,23 +73,23 @@ async function executeUnifiedJanSearch(janCode: string): Promise<SearchResponse>
     
     // レスポンス形式を既存の形式に合わせて変換
     const response: SearchResponse = {
-      finalResults: unifiedResult.final_results,
+      finalResults: unifiedResult.final_results || [],
       platformResults: {
-        ebay: unifiedResult.platform_results.ebay,
-        yahoo_shopping: unifiedResult.platform_results.yahoo_shopping,
-        mercari: unifiedResult.platform_results.mercari
+        ebay: unifiedResult.platform_results?.ebay || [],
+        yahoo_shopping: unifiedResult.platform_results?.yahoo_shopping || [],
+        mercari: unifiedResult.platform_results?.mercari || []
       },
       summary: {
-        totalFound: unifiedResult.summary.total_found,
-        afterDuplicateRemoval: unifiedResult.summary.after_deduplication,
-        finalCount: unifiedResult.summary.final_count,
-        cheapest: unifiedResult.final_results.length > 0 ? unifiedResult.final_results[0] : null,
-        mostExpensive: unifiedResult.final_results.length > 0 ? 
+        totalFound: unifiedResult.summary?.total_found || 0,
+        afterDuplicateRemoval: unifiedResult.summary?.after_deduplication || 0,
+        finalCount: unifiedResult.summary?.final_count || 0,
+        cheapest: unifiedResult.final_results && unifiedResult.final_results.length > 0 ? unifiedResult.final_results[0] : null,
+        mostExpensive: unifiedResult.final_results && unifiedResult.final_results.length > 0 ? 
           unifiedResult.final_results[unifiedResult.final_results.length - 1] : null,
         platformCounts: {
-          ebay: unifiedResult.platform_results.ebay.length,
-          yahoo_shopping: unifiedResult.platform_results.yahoo_shopping.length,
-          mercari: unifiedResult.platform_results.mercari.length
+          ebay: unifiedResult.platform_results?.ebay?.length || 0,
+          yahoo_shopping: unifiedResult.platform_results?.yahoo_shopping?.length || 0,
+          mercari: unifiedResult.platform_results?.mercari?.length || 0
         }
       }
     };
@@ -378,9 +378,9 @@ async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
         const mappedResult = {
           task_id: taskId,
           platform: result.platform || 'unknown',
-          title: result.item_title || '',
-          url: result.item_url || '',
-          image_url: result.item_image_url || '',
+          item_title: result.item_title || '',
+          item_url: result.item_url || '',
+          item_image_url: result.item_image_url || '',
           item_price: result.price || 0,
           shipping_cost: result.shipping_cost || 0,
           total_price: result.total_price || 0,
