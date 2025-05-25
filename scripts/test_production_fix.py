@@ -21,7 +21,10 @@ def test_jan_lookup():
     try:
         from src.jan.jan_lookup import get_product_name_from_jan
         
-        test_jan = "4902370548501"
+        # 環境変数からテスト用JANコードを取得、なければデフォルト値を使用
+        test_jan = os.environ.get('TEST_JAN_CODE', '4902370548501')
+        print(f"テスト用JANコード: {test_jan}")
+        
         product_name = get_product_name_from_jan(test_jan)
         
         if product_name:
@@ -45,7 +48,8 @@ def test_search_engine():
         from src.jan.search_engine import JANSearchEngine
         
         engine = JANSearchEngine()
-        test_jan = "4902370548501"
+        # 環境変数からテスト用JANコードを取得、なければデフォルト値を使用
+        test_jan = os.environ.get('TEST_JAN_CODE', '4902370548501')
         
         print(f"JANコード {test_jan} で検索を開始...")
         results = engine.search_by_jan(test_jan, limit=5)

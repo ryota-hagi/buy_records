@@ -1,0 +1,208 @@
+============================================================
+モックデータ検出レポート
+============================================================
+
+総検出数: 214件
+
+## モックファイル (15件)
+
+### 重要度: 高 (15件)
+
+- yahoo_shopping_test_results_20250524_215733.json
+  理由: モックデータファイル名
+
+- mercari_data_test.json
+  理由: モックデータファイル名
+
+- yahoo_auction_test_results_20250524_214358.json
+  理由: モックデータファイル名
+
+- scripts/test_nintendo_switch_search.py
+  理由: モックデータファイル名
+
+- scripts/test_ebay_improved_search.py
+  理由: モックデータファイル名
+
+- scripts/test_nodejs_search_engine.js
+  理由: モックデータファイル名
+
+- scripts/test_ebay_search.py
+  理由: モックデータファイル名
+
+- scripts/test_improved_search_system.py
+  理由: モックデータファイル名
+
+- scripts/test_google_translator.py
+  理由: モックデータファイル名
+
+- scripts/test_production_environment.js
+  理由: モックデータファイル名
+
+... 他5件
+
+
+## モックコード (53件)
+
+### 重要度: 高 (52件)
+
+- scripts/test_nintendo_switch_search.py:24
+  理由: モック関数の定義
+  内容: def test_nintendo_switch_search():
+
+- scripts/test_nintendo_switch_search.py:75
+  理由: モック関数の定義
+  内容: def test_jan_search_engine():
+
+- scripts/create_search_tasks_table_direct.py:47
+  理由: モック変数の定義
+  内容: sample_task = {
+
+- scripts/test_ebay_improved_search.py:20
+  理由: モック関数の定義
+  内容: def test_improved_ebay_search():
+
+- scripts/test_ebay_improved_search.py:70
+  理由: モック変数の定義
+  内容: test_product = "Nintendo Switch"
+
+- scripts/test_ebay_improved_search.py:143
+  理由: モック関数の定義
+  内容: def test_translation_features():
+
+- scripts/test_ebay_improved_search.py:148
+  理由: モック変数の定義
+  内容: test_products = [
+
+- scripts/generate_yahoo_auction_keywords.py:15
+  理由: モック関数の定義
+  内容: def generate_keywords() -> List[str]:
+
+- scripts/test_ebay_search.py:12
+  理由: モック関数の定義
+  内容: def test_ebay_search():
+
+- scripts/test_improved_search_system.py:18
+  理由: モック関数の定義
+  内容: def test_improved_search_system():
+
+... 他42件
+
+### 重要度: 中 (1件)
+
+- scripts/import_mercari_to_supabase.py:151
+  理由: モックURL
+  内容: url = "http://localhost:3000/api/mcp/tool"
+
+
+## ハードコーディング (32件)
+
+### 重要度: 中 (32件)
+
+- yahoo_shopping_test_results_20250524_215733.json:29
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777300446",
+
+- yahoo_shopping_test_results_20250524_215733.json:55
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777300446",
+
+- yahoo_shopping_test_results_20250524_215733.json:81
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777300446",
+
+- yahoo_shopping_test_results_20250524_215733.json:107
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777361294",
+
+- yahoo_shopping_test_results_20250524_215733.json:133
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777361294",
+
+- yahoo_shopping_test_results_20250524_215733.json:159
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777377141",
+
+- yahoo_shopping_test_results_20250524_215733.json:185
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777392281",
+
+- yahoo_shopping_test_results_20250524_215733.json:211
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777377141",
+
+- yahoo_shopping_test_results_20250524_215733.json:237
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777377141",
+
+- yahoo_shopping_test_results_20250524_215733.json:263
+  理由: ハードコーディングされたJANコード
+  内容: "jan_code": "4901777300446",
+
+... 他22件
+
+
+## 疑わしいパターン (114件)
+
+### 重要度: 低 (114件)
+
+- package-lock.json:2895
+  理由: 疑わしいパターン: test
+  内容: "safe-regex-test": "^1.1.0",
+
+- package-lock.json:3279
+  理由: 疑わしいパターン: test
+  内容: "safe-regex-test": "^1.0.3",
+
+- package-lock.json:4020
+  理由: 疑わしいパターン: test
+  内容: "safe-regex-test": "^1.1.0"
+
+- package-lock.json:4172
+  理由: 疑わしいパターン: test
+  内容: "safe-regex-test": "^1.1.0"
+
+- package-lock.json:4308
+  理由: 疑わしいパターン: test
+  内容: "safe-regex-test": "^1.1.0"
+
+- package-lock.json:5017
+  理由: 疑わしいパターン: test
+  内容: "@playwright/test": "^1.41.2",
+
+- package-lock.json:5027
+  理由: 疑わしいパターン: test
+  内容: "@playwright/test": {
+
+- package-lock.json:5660
+  理由: 疑わしいパターン: test
+  内容: "node_modules/safe-regex-test": {
+
+- package-lock.json:5662
+  理由: 疑わしいパターン: test
+  内容: "resolved": "https://registry.npmjs.org/safe-regex-test/-/safe-regex-test-1.1.0.tgz",
+
+- yahoo_auction_test_results_20250524_214358.json:4
+  理由: 疑わしいパターン: test
+  内容: "test_queries": [
+
+... 他104件
+
+
+## 推奨アクション
+
+1. モックファイルの削除または名前変更
+   - yahoo_shopping_test_results_20250524_215733.json
+   - mercari_data_test.json
+   - yahoo_auction_test_results_20250524_214358.json
+   - scripts/test_nintendo_switch_search.py
+   - scripts/test_ebay_improved_search.py
+
+2. モックコードの実データ取得への変更
+   - 実際のAPI呼び出しに置き換え
+   - 環境変数による設定に変更
+
+3. ハードコーディングされた値の設定化
+   - 環境変数への移行
+   - 設定ファイルの使用
+
+詳細は docs/anti_mock_guidelines.md を参照してください。

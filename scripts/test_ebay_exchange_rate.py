@@ -30,43 +30,56 @@ def test_ebay_with_exchange_rate():
     print("eBay検索戦略を初期化しました")
     print()
     
-    # テスト検索を実行（実際のAPI呼び出しは行わず、価格変換ロジックのみテスト）
-    print("3. 価格変換ロジックのテスト:")
+    # 実際のeBay検索を実行
+    print("3. 実際のeBay検索テスト:")
+    test_product = "Nintendo Switch"
+    print(f"検索商品: {test_product}")
     
-    # モックデータを作成
-    mock_ebay_results = [
-        {
-            'item_id': 'test1',
-            'title': 'Test Item 1',
-            'price': 29.99,
-            'currency': 'USD',
-            'url': 'https://ebay.com/test1',
-            'image_url': 'https://ebay.com/image1.jpg',
-            'condition': 'New',
-            'seller': 'test_seller'
-        },
-        {
-            'item_id': 'test2',
-            'title': 'Test Item 2',
-            'price': 99.95,
-            'currency': 'USD',
-            'url': 'https://ebay.com/test2',
-            'image_url': 'https://ebay.com/image2.jpg',
-            'condition': 'Used',
-            'seller': 'another_seller'
-        }
-    ]
-    
-    # 価格変換をテスト
-    for item in mock_ebay_results:
-        usd_price = item['price']
-        jpy_price = int(usd_price * current_rate)
+    try:
+        # 実際のeBay検索を実行（少数の結果のみ）
+        ebay_results = ebay_strategy.search(test_product, limit=3)
         
-        print(f"商品: {item['title']}")
-        print(f"  USD価格: ${usd_price}")
-        print(f"  JPY価格: ¥{jpy_price} (レート: {current_rate})")
-        print(f"  商品ID: {item['item_id']}")
-        print(f"  状態: {item['condition']}")
+        if ebay_results:
+            print(f"検索結果: {len(ebay_results)}件")
+            print()
+            
+            # 実際の検索結果で価格変換をテスト
+            for i, item in enumerate(ebay_results[:3], 1):
+                print(f"商品 {i}: {item.get('title', 'タイトル不明')}")
+                
+                # 価格情報があれば表示
+                if 'price' in item and item['price'] is not None:
+                    usd_price = float(item['price'])
+                    jpy_price = int(usd_price * current_rate)
+                    
+                    print(f"  USD価格: ${usd_price:.2f}")
+                    print(f"  JPY価格: ¥{jpy_price:,} (レート: {current_rate})")
+                else:
+                    print(f"  価格情報: 取得できませんでした")
+                
+                print(f"  状態: {item.get('condition', '不明')}")
+                print(f"  URL: {item.get('url', 'URL不明')}")
+                print()
+        else:
+            print("検索結果が見つかりませんでした")
+            print("価格変換ロジックのテストのみ実行します")
+            
+            # フォールバック: 価格変換ロジックのみテスト
+            test_prices = [29.99, 99.95]
+            for price in test_prices:
+                jpy_price = int(price * current_rate)
+                print(f"USD ${price:.2f} → JPY ¥{jpy_price:,}")
+            print()
+    
+    except Exception as e:
+        print(f"eBay検索エラー: {e}")
+        print("価格変換ロジックのテストのみ実行します")
+        
+        # フォールバック: 価格変換ロジックのみテスト
+        test_prices = [29.99, 99.95]
+        for price in test_prices:
+            jpy_price = int(price * current_rate)
+            print(f"USD ${price:.2f} → JPY ¥{jpy_price:,}")
         print()
     
     print("4. 統合テスト結果:")
