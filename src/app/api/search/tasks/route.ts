@@ -381,11 +381,12 @@ async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
           item_title: result.item_title || '',
           item_url: result.item_url || '',
           item_image_url: result.item_image_url || '',
-          item_price: result.price || 0,
-          shipping_cost: result.shipping_cost || 0,
-          total_price: result.total_price || 0,
-          condition: result.condition || '',
-          seller_name: result.seller || ''
+          base_price: result.price || 0,
+          service_fee: 0,
+          payment_fee: 0,
+          shipping_fee: result.shipping_cost || 0,
+          seller_name: result.seller || '',
+          item_condition: result.condition || ''
         };
         
         if (index === 0) {

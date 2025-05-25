@@ -15,7 +15,7 @@ def check_task_result():
     print("=" * 60)
     
     base_url = "https://buy-records.vercel.app"
-    task_id = "2dda35c0-8872-4185-b6f3-b15eae6ce948"
+    task_id = "376c1587-f6d2-489c-aed4-03ea3bbba836"
     
     try:
         # タスクの状態を確認
