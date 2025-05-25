@@ -36,269 +36,18 @@ interface SearchResponse {
   };
 }
 
-// 実際のJANコード検索エンジンクラス（本番環境用）
-class JANSearchEngine {
-  private userAgent: string;
 
-  constructor() {
-    this.userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
-  }
-
-  /**
-   * JANコードで商品を検索（実際のAPI呼び出し版）
-   */
-  async searchByJan(janCode: string, limit: number = 20): Promise<SearchResponse> {
-    console.log(`Starting real search for JAN code: ${janCode}`);
-    console.log(`Target: ${limit} items per platform (eBay API, Yahoo API, Mercari scraping)`);
-    
-    const startTime = Date.now();
-    
-    try {
-      // 実際の検索時間をシミュレート（最低30秒）
-      console.log('Executing real API calls and scraping...');
-      
-      // 各プラットフォームから並行して20件ずつ取得
-      const [ebayResults, yahooResults, mercariResults] = await Promise.all([
-        this.searchEbay(janCode, 20),
-        this.searchYahooShopping(janCode, 20),
-        this.searchMercari(janCode, 20)
-      ]);
-
-      console.log(`Platform results: eBay ${ebayResults.length}, Yahoo ${yahooResults.length}, Mercari ${mercariResults.length}`);
-
-      // API呼び出しが全て失敗した場合
-      const totalResults = ebayResults.length + yahooResults.length + mercariResults.length;
-      if (totalResults === 0) {
-        console.log('No results from APIs - all platforms failed');
-        // Vercel環境では30秒待機を削除（タイムアウト対策）
-        throw new Error('API検索に失敗しました。eBay、Yahoo Shopping、メルカリのAPIが利用できません。');
-      }
-
-      // 全結果を統合
-      const allResults = [...ebayResults, ...yahooResults, ...mercariResults];
-      
-      // 重複除去
-      const uniqueResults = this.removeDuplicates(allResults);
-      
-      // 価格順でソート
-      const sortedResults = uniqueResults.sort((a, b) => a.total_price - b.total_price);
-      
-      // 最終的に20件に制限
-      const finalResults = sortedResults.slice(0, limit);
-      
-      const searchTime = Math.round((Date.now() - startTime) / 1000);
-      console.log(`Search completed in ${searchTime}s: ${allResults.length} total → ${uniqueResults.length} unique → ${finalResults.length} final`);
-      
-      return {
-        finalResults,
-        platformResults: {
-          ebay: ebayResults,
-          yahoo_shopping: yahooResults,
-          mercari: mercariResults
-        },
-        summary: {
-          totalFound: allResults.length,
-          afterDuplicateRemoval: uniqueResults.length,
-          finalCount: finalResults.length,
-          cheapest: finalResults.length > 0 ? finalResults[0] : null,
-          mostExpensive: finalResults.length > 0 ? finalResults[finalResults.length - 1] : null,
-          platformCounts: {
-            ebay: ebayResults.length,
-            yahoo_shopping: yahooResults.length,
-            mercari: mercariResults.length
-          }
-        }
-      };
-      
-    } catch (error) {
-      console.error('Error in searchByJan:', error);
-      throw error;
+// 重複除去関数
+function removeDuplicates(results: SearchResult[]): SearchResult[] {
+  const seen = new Set<string>();
+  return results.filter((item: SearchResult) => {
+    const key = `${item.platform}-${item.item_title}-${item.price}`;
+    if (seen.has(key)) {
+      return false;
     }
-  }
-
-  /**
-   * eBay API検索（Node.js版）
-   */
-  async searchEbay(janCode: string, limit: number): Promise<SearchResult[]> {
-    try {
-      console.log(`Searching eBay API for JAN: ${janCode}`);
-      
-      // eBay Finding API呼び出し
-      const ebayAppId = process.env.EBAY_APP_ID;
-      if (!ebayAppId) {
-        console.warn('eBay API key not configured, skipping eBay search');
-        return [];
-      }
-
-      const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
-        params: {
-          'OPERATION-NAME': 'findItemsByKeywords',
-          'SERVICE-VERSION': '1.0.0',
-          'SECURITY-APPNAME': ebayAppId,
-          'RESPONSE-DATA-FORMAT': 'JSON',
-          'REST-PAYLOAD': '',
-          'keywords': janCode,
-          'paginationInput.entriesPerPage': limit,
-          'itemFilter(0).name': 'ListingType',
-          'itemFilter(0).value': 'FixedPrice',
-          'itemFilter(1).name': 'Condition',
-          'itemFilter(1).value': 'New'
-        },
-        timeout: 5000
-      });
-
-      const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
-      
-      const results: SearchResult[] = items.map((item: any) => ({
-        platform: 'ebay',
-        item_title: item.title?.[0] || '',
-        item_url: item.viewItemURL?.[0] || '',
-        item_image_url: item.galleryURL?.[0] || '',
-        price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
-        total_price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
-        shipping_cost: parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__ || '0'),
-        condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'New',
-        seller: item.sellerInfo?.[0]?.sellerUserName?.[0] || ''
-      }));
-
-      console.log(`eBay search completed: ${results.length} items`);
-      return results;
-      
-    } catch (error) {
-      console.error('eBay search error:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Yahoo Shopping API検索（Node.js版）
-   */
-  async searchYahooShopping(janCode: string, limit: number): Promise<SearchResult[]> {
-    try {
-      console.log(`Searching Yahoo Shopping API for JAN: ${janCode}`);
-      
-      // Yahoo Shopping API呼び出し
-      const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
-      if (!yahooAppId) {
-        console.warn('Yahoo API key not configured, skipping Yahoo search');
-        return [];
-      }
-
-      const response = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
-        params: {
-          appid: yahooAppId,
-          jan_code: janCode,
-          results: limit,
-          sort: 'price',
-          output: 'json'
-        },
-        timeout: 5000
-      });
-
-      const items = response.data?.hits || [];
-      
-      const results: SearchResult[] = items.map((item: any) => ({
-        platform: 'yahoo_shopping',
-        item_title: item.name || '',
-        item_url: item.url || '',
-        item_image_url: item.image?.medium || '',
-        price: parseInt(item.price || '0'),
-        total_price: parseInt(item.price || '0'),
-        shipping_cost: 0, // Yahoo Shoppingは送料込み価格が多い
-        condition: '新品',
-        seller: item.store?.name || ''
-      }));
-
-      console.log(`Yahoo Shopping search completed: ${results.length} items`);
-      return results;
-      
-    } catch (error) {
-      console.error('Yahoo Shopping search error:', error);
-      return [];
-    }
-  }
-
-  /**
-   * メルカリ検索（Node.js版 - 簡易実装）
-   */
-  async searchMercari(janCode: string, limit: number): Promise<SearchResult[]> {
-    try {
-      console.log(`Searching Mercari for JAN: ${janCode}`);
-      
-      // メルカリは公式APIがないため、簡易的な検索を実装
-      // 実際の本番環境では、より高度なスクレイピングまたは代替手段が必要
-      
-      const response = await axios.get(`https://api.mercari.com/v2/entities:search`, {
-        params: {
-          keyword: janCode,
-          limit: limit,
-          offset: 0,
-          order: 'price_asc',
-          status: 'on_sale'
-        },
-        headers: {
-          'User-Agent': this.userAgent,
-          'Accept': 'application/json'
-        },
-        timeout: 5000
-      });
-
-      const items = response.data?.data || [];
-      
-      const results: SearchResult[] = items.map((item: any) => ({
-        platform: 'mercari',
-        item_title: item.name || '',
-        item_url: `https://jp.mercari.com/item/${item.id}`,
-        item_image_url: item.thumbnails?.[0] || '',
-        price: parseInt(item.price || '0'),
-        total_price: parseInt(item.price || '0'),
-        shipping_cost: 0, // メルカリは送料込みが多い
-        condition: item.item_condition?.name || '',
-        seller: item.seller?.name || ''
-      }));
-
-      console.log(`Mercari search completed: ${results.length} items`);
-      return results;
-      
-    } catch (error) {
-      console.error('Mercari search error:', error);
-      // メルカリAPIが利用できない場合は空の結果を返す
-      return [];
-    }
-  }
-
-  /**
-   * 重複除去
-   */
-  removeDuplicates(results: SearchResult[]): SearchResult[] {
-    const seen = new Set<string>();
-    return results.filter((item: SearchResult) => {
-      const key = `${item.platform}-${item.item_title}-${item.price}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
-
-  /**
-   * JANコードから商品名を取得（簡易版）
-   */
-  getProductNameFromJan(janCode: string): string {
-    const commonProducts: { [key: string]: string } = {
-      '4901777300446': 'サントリー 緑茶 伊右衛門 600ml ペット',
-      '4902370548501': 'Nintendo Switch 本体',
-      '4549292094534': 'ポケットモンスター スカーレット',
-      '4549292094541': 'ポケットモンスター バイオレット',
-      '4902370542912': 'Nintendo Switch Pro コントローラー',
-      '4549292093827': 'スプラトゥーン3',
-      '4549292093834': 'マリオカート8 デラックス',
-      '4549292093841': 'あつまれ どうぶつの森'
-    };
-    
-    return commonProducts[janCode] || `商品 (JANコード: ${janCode})`;
-  }
+    seen.add(key);
+    return true;
+  });
 }
 
 // 環境変数の確認
@@ -327,25 +76,210 @@ function getProductNameFromJan(janCode: string): string {
   return commonProducts[janCode] || `商品 (JANコード: ${janCode})`;
 }
 
-// JANコード検索を実行する関数（実際のAPI呼び出し版）
+// JANコード検索を実行する関数（Node.js版 - Vercel対応）
 async function executeJanSearch(janCode: string): Promise<SearchResponse> {
   try {
-    console.log(`Starting real JAN search for: ${janCode}`);
-    console.log(`Target: 20 items each from eBay API, Yahoo API, Mercari → 60 total → top 20`);
+    console.log(`[MAIN] Starting Node.js JAN search for: ${janCode}`);
+    console.log(`[MAIN] Target: 10 items each from eBay API, Yahoo API → 20 total`);
     
-    const searchEngine = new JANSearchEngine();
-    const searchResult = await searchEngine.searchByJan(janCode, 20);
+    // 環境変数の詳細チェック
+    const ebayAppId = process.env.EBAY_APP_ID;
+    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
     
-    console.log(`Real search completed:`);
-    console.log(`- Final results: ${searchResult.finalResults.length} items`);
-    console.log(`- Platform counts: eBay ${searchResult.summary.platformCounts.ebay}, Yahoo ${searchResult.summary.platformCounts.yahoo_shopping}, Mercari ${searchResult.summary.platformCounts.mercari}`);
-    console.log(`- Total found: ${searchResult.summary.totalFound} items`);
+    console.log(`[MAIN] Environment variables check:`);
+    console.log(`[MAIN] - EBAY_APP_ID: ${ebayAppId ? `SET (${ebayAppId.substring(0, 10)}...)` : 'NOT SET'}`);
+    console.log(`[MAIN] - YAHOO_SHOPPING_APP_ID: ${yahooAppId ? `SET (${yahooAppId.substring(0, 10)}...)` : 'NOT SET'}`);
+    console.log(`[MAIN] - NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`[MAIN] - All env keys:`, Object.keys(process.env).filter(key => key.includes('EBAY') || key.includes('YAHOO')));
+    console.log(`[MAIN] - All env keys (full):`, Object.keys(process.env).sort());
     
-    return searchResult;
+    // 環境変数が設定されていない場合は即座にエラーを返す
+    if (!ebayAppId && !yahooAppId) {
+      const errorMsg = `API検索に失敗しました。eBay、Yahoo Shopping、メルカリのAPIが利用できません。環境変数が設定されていません。
+      利用可能な環境変数: ${Object.keys(process.env).filter(key => key.includes('EBAY') || key.includes('YAHOO')).join(', ')}
+      NODE_ENV: ${process.env.NODE_ENV}`;
+      throw new Error(errorMsg);
+    }
+    
+    // 各プラットフォームから並行して検索
+    console.log(`[MAIN] Starting parallel search execution...`);
+    const [ebayResults, yahooResults] = await Promise.all([
+      searchEbayNodeJS(janCode, 10),
+      searchYahooShoppingNodeJS(janCode, 10)
+    ]);
+
+    console.log(`[MAIN] Platform results: eBay ${ebayResults.length}, Yahoo ${yahooResults.length}`);
+
+    // 全結果を統合
+    const allResults = [...ebayResults, ...yahooResults];
+    console.log(`[MAIN] Combined results: ${allResults.length} total items`);
+    
+    // 重複除去
+    const uniqueResults = removeDuplicates(allResults);
+    console.log(`[MAIN] After duplicate removal: ${uniqueResults.length} unique items`);
+    
+    // 価格順でソート
+    const sortedResults = uniqueResults.sort((a, b) => a.total_price - b.total_price);
+    console.log(`[MAIN] Results sorted by price`);
+    
+    // 最終的に20件に制限
+    const finalResults = sortedResults.slice(0, 20);
+    console.log(`[MAIN] Final results: ${finalResults.length} items (limited to 20)`);
+    
+    // 結果が0件の場合の詳細ログ
+    if (finalResults.length === 0) {
+      console.warn(`[MAIN] WARNING: No results found for JAN ${janCode}`);
+      console.warn(`[MAIN] eBay results: ${ebayResults.length}, Yahoo results: ${yahooResults.length}`);
+      console.warn(`[MAIN] This may indicate API configuration issues or no matching products`);
+    }
+    
+    const response = {
+      finalResults,
+      platformResults: {
+        ebay: ebayResults,
+        yahoo_shopping: yahooResults,
+        mercari: [] // メルカリは本番環境では無効
+      },
+      summary: {
+        totalFound: allResults.length,
+        afterDuplicateRemoval: uniqueResults.length,
+        finalCount: finalResults.length,
+        cheapest: finalResults.length > 0 ? finalResults[0] : null,
+        mostExpensive: finalResults.length > 0 ? finalResults[finalResults.length - 1] : null,
+        platformCounts: {
+          ebay: ebayResults.length,
+          yahoo_shopping: yahooResults.length,
+          mercari: 0
+        }
+      }
+    };
+    
+    console.log(`[MAIN] Search completed successfully. Response summary:`, JSON.stringify(response.summary, null, 2));
+    return response;
     
   } catch (error) {
-    console.error('Error executing real JAN search:', error);
-    throw new Error(`実際の検索の実行に失敗しました: ${(error as Error).message}`);
+    console.error('[MAIN] Error executing Node.js JAN search:', error);
+    throw new Error(`Node.js検索の実行に失敗しました: ${(error as Error).message}`);
+  }
+}
+
+// eBay API検索（Node.js版）
+async function searchEbayNodeJS(janCode: string, limit: number): Promise<SearchResult[]> {
+  try {
+    console.log(`[eBay] Starting search for JAN: ${janCode}`);
+    
+    const ebayAppId = process.env.EBAY_APP_ID;
+    console.log(`[eBay] API Key configured: ${ebayAppId ? 'YES' : 'NO'}`);
+    
+    if (!ebayAppId) {
+      console.warn('[eBay] API key not configured, skipping eBay search');
+      return [];
+    }
+
+    console.log(`[eBay] Making API request to eBay Finding Service...`);
+    const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
+      params: {
+        'OPERATION-NAME': 'findItemsByKeywords',
+        'SERVICE-VERSION': '1.0.0',
+        'SECURITY-APPNAME': ebayAppId,
+        'RESPONSE-DATA-FORMAT': 'JSON',
+        'REST-PAYLOAD': '',
+        'keywords': janCode,
+        'paginationInput.entriesPerPage': limit,
+        'itemFilter(0).name': 'ListingType',
+        'itemFilter(0).value': 'FixedPrice',
+        'itemFilter(1).name': 'Condition',
+        'itemFilter(1).value': 'New'
+      },
+      timeout: 5000
+    });
+
+    console.log(`[eBay] API response status: ${response.status}`);
+    console.log(`[eBay] API response data structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+
+    const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
+    console.log(`[eBay] Found ${items.length} raw items`);
+    
+    const results: SearchResult[] = items.map((item: any) => ({
+      platform: 'ebay',
+      item_title: item.title?.[0] || '',
+      item_url: item.viewItemURL?.[0] || '',
+      item_image_url: item.galleryURL?.[0] || '',
+      price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
+      total_price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0'),
+      shipping_cost: parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__ || '0'),
+      condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'New',
+      seller: item.sellerInfo?.[0]?.sellerUserName?.[0] || ''
+    }));
+
+    console.log(`[eBay] Search completed successfully: ${results.length} items processed`);
+    return results;
+    
+  } catch (error) {
+    console.error('[eBay] Search error details:', {
+      message: (error as Error).message,
+      status: (error as any).response?.status,
+      statusText: (error as any).response?.statusText,
+      data: (error as any).response?.data
+    });
+    return [];
+  }
+}
+
+// Yahoo Shopping API検索（Node.js版）
+async function searchYahooShoppingNodeJS(janCode: string, limit: number): Promise<SearchResult[]> {
+  try {
+    console.log(`[Yahoo] Starting search for JAN: ${janCode}`);
+    
+    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
+    console.log(`[Yahoo] API Key configured: ${yahooAppId ? 'YES' : 'NO'}`);
+    
+    if (!yahooAppId) {
+      console.warn('[Yahoo] API key not configured, skipping Yahoo search');
+      return [];
+    }
+
+    console.log(`[Yahoo] Making API request to Yahoo Shopping Service...`);
+    const response = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
+      params: {
+        appid: yahooAppId,
+        jan_code: janCode,
+        results: limit,
+        sort: 'price',
+        output: 'json'
+      },
+      timeout: 5000
+    });
+
+    console.log(`[Yahoo] API response status: ${response.status}`);
+    console.log(`[Yahoo] API response data structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+
+    const items = response.data?.hits || [];
+    console.log(`[Yahoo] Found ${items.length} raw items`);
+    
+    const results: SearchResult[] = items.map((item: any) => ({
+      platform: 'yahoo_shopping',
+      item_title: item.name || '',
+      item_url: item.url || '',
+      item_image_url: item.image?.medium || '',
+      price: parseInt(item.price || '0'),
+      total_price: parseInt(item.price || '0'),
+      shipping_cost: 0,
+      condition: '新品',
+      seller: item.store?.name || ''
+    }));
+
+    console.log(`[Yahoo] Search completed successfully: ${results.length} items processed`);
+    return results;
+    
+  } catch (error) {
+    console.error('[Yahoo] Search error details:', {
+      message: (error as Error).message,
+      status: (error as any).response?.status,
+      statusText: (error as any).response?.statusText,
+      data: (error as any).response?.data
+    });
+    return [];
   }
 }
 
