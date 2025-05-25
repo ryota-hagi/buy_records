@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { UnifiedJanSearchEngineSimple } from '../../../../jan/unified_search_engine_simple';
+import { UnifiedJanSearchEngineSimple } from '../../../lib/unified_search_engine_simple';
 
 // Supabaseクライアント初期化
 const supabase = createClient(
