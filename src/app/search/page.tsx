@@ -78,13 +78,29 @@ export default function SearchPage() {
         }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '検索タスクの作成に失敗しました');
+        let errorMessage = '検索タスクの作成に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `サーバーエラー (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
-      const taskData = await response.json();
-      console.log('Task created:', taskData);
+      let taskData;
+      try {
+        taskData = await response.json();
+        console.log('Task created:', taskData);
+      } catch (parseError) {
+        console.error('Failed to parse response JSON:', parseError);
+        throw new Error('サーバーからの応答の解析に失敗しました');
+      }
       
       if (taskData.success && taskData.task) {
         setCurrentTask(taskData.task);
@@ -92,7 +108,7 @@ export default function SearchPage() {
         // タスクの完了を監視
         pollTaskStatus(taskData.task.id);
       } else {
-        throw new Error('タスクの作成に失敗しました');
+        throw new Error(taskData.error || 'タスクの作成に失敗しました');
       }
     } catch (err) {
       console.error('Search error:', err);

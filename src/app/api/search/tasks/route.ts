@@ -201,57 +201,83 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: 新しい検索タスクを作成（最終版統合検索エンジン使用）
+// POST: 新しい検索タスクを作成（統合検索エンジン使用）
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    console.log('[TASK_CREATE] Starting task creation process...');
+    
+    // リクエストボディの安全な解析
+    let body;
+    try {
+      body = await request.json();
+      console.log('[TASK_CREATE] Request body parsed successfully:', body);
+    } catch (parseError) {
+      console.error('[TASK_CREATE] Failed to parse request body:', parseError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'リクエストボディの解析に失敗しました' 
+        },
+        { status: 400 }
+      );
+    }
+
     const { jan_code } = body;
 
     // JANコードのバリデーション
     if (!jan_code || typeof jan_code !== 'string') {
+      console.error('[TASK_CREATE] Invalid JAN code provided:', jan_code);
       return NextResponse.json(
-        { error: 'JANコードが必要です' },
+        { 
+          success: false,
+          error: 'JANコードが必要です' 
+        },
         { status: 400 }
       );
     }
 
     const cleanJanCode = jan_code.replace(/\D/g, '');
     if (!/^\d{8}$|^\d{13}$/.test(cleanJanCode)) {
+      console.error('[TASK_CREATE] Invalid JAN code format:', cleanJanCode);
       return NextResponse.json(
-        { error: 'JANコードは8桁または13桁の数字である必要があります' },
+        { 
+          success: false,
+          error: 'JANコードは8桁または13桁の数字である必要があります' 
+        },
         { status: 400 }
       );
     }
 
-    console.log(`Creating unified search task for JAN code: ${cleanJanCode}`);
+    console.log(`[TASK_CREATE] Creating unified search task for JAN code: ${cleanJanCode}`);
 
-    // まず商品名のみを取得（軽量な処理）
-    console.log(`[ROUTE] Creating UnifiedJanSearchEngineFinal instance...`);
-    let searchEngine;
-    try {
-      searchEngine = new UnifiedJanSearchEngineSimple();
-      console.log(`[ROUTE] UnifiedJanSearchEngineSimple instance created successfully`);
-    } catch (error) {
-      console.error(`[ROUTE] Failed to create UnifiedJanSearchEngineSimple:`, error);
-      throw error;
-    }
-    
+    // デフォルトの商品名を設定
     let productName = `商品 (JANコード: ${cleanJanCode})`;
     
+    // 統合検索エンジンによる商品名取得を試行（エラー時はデフォルト名を使用）
     try {
-      console.log(`[ROUTE] Attempting to get product name for JAN: ${cleanJanCode}`);
-      // 商品名取得のみの軽量処理
-      const tempResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
-      console.log(`[ROUTE] Product name search result:`, tempResult);
-      if (tempResult.success && tempResult.product_name) {
+      console.log(`[TASK_CREATE] Attempting to get product name using unified search engine...`);
+      
+      // 統合検索エンジンのインスタンス作成
+      const searchEngine = new UnifiedJanSearchEngineSimple();
+      console.log(`[TASK_CREATE] UnifiedJanSearchEngineSimple instance created successfully`);
+      
+      // 軽量な商品名取得処理（タイムアウト付き）
+      const productNamePromise = searchEngine.executeUnifiedJanSearch(cleanJanCode);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Product name fetch timeout')), 10000)
+      );
+      
+      const tempResult = await Promise.race([productNamePromise, timeoutPromise]) as any;
+      
+      if (tempResult && tempResult.success && tempResult.product_name) {
         productName = tempResult.product_name;
-        console.log(`[ROUTE] Product name obtained: ${productName}`);
+        console.log(`[TASK_CREATE] Product name obtained: ${productName}`);
       } else {
-        console.warn(`[ROUTE] Product name search failed or returned no name`);
+        console.warn(`[TASK_CREATE] Product name search returned no valid name, using default`);
       }
     } catch (error) {
-      console.error('[ROUTE] Product name fetch failed:', error);
-      console.error('[ROUTE] Error stack:', (error as Error).stack);
+      console.warn('[TASK_CREATE] Product name fetch failed, using default name:', (error as Error).message);
+      // エラーが発生してもデフォルト名で続行
     }
 
     // タスクをデータベースに作成（pending状態）
@@ -267,13 +293,14 @@ export async function POST(request: NextRequest) {
           timestamp: new Date().toISOString(),
           step: 'task_created',
           status: 'info',
-          message: 'タスクが作成されました（最終版統合検索エンジン）'
+          message: 'タスクが作成されました（統合検索エンジン使用）'
         }
       ],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
+    console.log('[TASK_CREATE] Inserting task into database...');
     const { data: task, error: insertError } = await supabase
       .from('search_tasks')
       .insert(taskData)
@@ -281,22 +308,25 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('Database insert error:', insertError);
+      console.error('[TASK_CREATE] Database insert error:', insertError);
       return NextResponse.json(
-        { error: 'タスクの作成に失敗しました' },
+        { 
+          success: false,
+          error: 'タスクの作成に失敗しました' 
+        },
         { status: 500 }
       );
     }
 
-    console.log(`Unified search task created: ${task.id}`);
+    console.log(`[TASK_CREATE] Unified search task created successfully: ${task.id}`);
 
     // バックグラウンドで統合検索を実行開始（実際の検索処理）
     executeUnifiedTaskInBackground(task.id, cleanJanCode).catch(error => {
-      console.error(`Background unified task execution failed for task ${task.id}:`, error);
+      console.error(`[TASK_CREATE] Background unified task execution failed for task ${task.id}:`, error);
     });
 
     // タスク作成の成功レスポンスを即座に返す
-    return NextResponse.json({
+    const response = {
       success: true,
       task: {
         id: task.id,
@@ -305,12 +335,20 @@ export async function POST(request: NextRequest) {
         search_params: task.search_params,
         created_at: task.created_at
       }
-    });
+    };
+
+    console.log('[TASK_CREATE] Returning success response:', response);
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error('Error creating unified search task:', error);
+    console.error('[TASK_CREATE] Unexpected error creating unified search task:', error);
+    console.error('[TASK_CREATE] Error stack:', (error as Error).stack);
+    
     return NextResponse.json(
-      { error: 'タスクの作成中にエラーが発生しました: ' + (error as Error).message },
+      { 
+        success: false,
+        error: 'タスクの作成中に予期しないエラーが発生しました' 
+      },
       { status: 500 }
     );
   }
