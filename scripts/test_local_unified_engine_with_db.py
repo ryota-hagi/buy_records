@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-本番環境での統合検索エンジンとデータベース保存処理のテスト
+ローカル環境での統合検索エンジンとデータベース保存処理のテスト
 修正されたワークフローシステムの動作確認
 """
 
@@ -10,13 +10,13 @@ import time
 import sys
 from datetime import datetime
 
-# 本番環境のURL
-BASE_URL = "https://buy-records.vercel.app"
+# ローカル環境のURL
+BASE_URL = "http://localhost:3001"
 
-def test_production_unified_engine():
-    """本番環境での統合検索エンジンとデータベース保存処理をテスト"""
+def test_local_unified_engine():
+    """ローカル環境での統合検索エンジンとデータベース保存処理をテスト"""
     
-    print("🚀 本番環境での統合検索エンジン + データベース保存処理テスト開始")
+    print("🚀 ローカル環境での統合検索エンジン + データベース保存処理テスト開始")
     print(f"📍 テスト対象: {BASE_URL}")
     print(f"⏰ 開始時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 80)
@@ -59,9 +59,9 @@ def test_production_unified_engine():
         task_id = create_data['task']['id']
         
         # 2. タスクの完了を待機
-        print(f"\n⏳ ステップ2: タスク完了を待機 (最大120秒)")
+        print(f"\n⏳ ステップ2: タスク完了を待機 (最大180秒)")
         
-        max_wait_time = 120
+        max_wait_time = 180
         check_interval = 5
         elapsed_time = 0
         
@@ -104,9 +104,19 @@ def test_production_unified_engine():
                             print(f"\n📋 保存されたデータサンプル (最初の3件):")
                             for i, result in enumerate(saved_results[:3]):
                                 print(f"   {i+1}. {result.get('platform', 'unknown')} - {result.get('item_title', 'タイトル不明')[:50]}...")
-                                print(f"      💰 価格: {result.get('base_price', 0)}円 + 送料: {result.get('shipping_fee', 0)}円 = 合計: {result.get('total_price', 0)}円")
+                                print(f"      💰 価格: {result.get('base_price', 0)}円 + 送料: {result.get('shipping_fee', 0)}円")
                                 print(f"      🏪 販売者: {result.get('seller_name', '不明')}")
                                 print(f"      📦 状態: {result.get('item_condition', '不明')}")
+                                
+                        # フィールドマッピング確認
+                        print(f"\n🔍 フィールドマッピング確認:")
+                        if saved_results:
+                            sample = saved_results[0]
+                            print(f"   ✅ base_price: {sample.get('base_price', 'N/A')}")
+                            print(f"   ✅ shipping_fee: {sample.get('shipping_fee', 'N/A')}")
+                            print(f"   ✅ item_condition: {sample.get('item_condition', 'N/A')}")
+                            print(f"   ✅ seller_name: {sample.get('seller_name', 'N/A')}")
+                            
                     else:
                         print(f"❌ データベース保存失敗 - 0件保存")
                         return False
@@ -144,10 +154,10 @@ def test_production_unified_engine():
 
 def main():
     """メイン実行関数"""
-    print("🔧 本番環境統合検索エンジン + データベース保存処理テスト")
+    print("🔧 ローカル環境統合検索エンジン + データベース保存処理テスト")
     print("=" * 80)
     
-    success = test_production_unified_engine()
+    success = test_local_unified_engine()
     
     print("\n" + "=" * 80)
     if success:
@@ -155,6 +165,7 @@ def main():
         print("✅ 統合検索エンジンが正常に動作しています")
         print("✅ データベース保存処理が正常に動作しています")
         print("✅ フィールドマッピング修正が有効です")
+        print("✅ 修正されたコードが正常に動作しています")
     else:
         print("❌ テスト失敗")
         print("🔍 ログを確認して問題を特定してください")

@@ -1,0 +1,27 @@
+{
+  "name": "mercari-scraper",
+  "version": "1.0.0",
+  "description": "Mercari product scraper for Japanese marketplace",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mercari",
+    "scraper",
+    "ecommerce",
+    "japan",
+    "marketplace"
+  ],
+  "author": "Records Project",
+  "license": "MIT",
+  "dependencies": {
+    "apify": "^3.1.0",
+    "puppeteer": "^21.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apify/mercari-scraper"
+  }
+}

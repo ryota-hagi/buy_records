@@ -1,11 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { spawn } from 'child_process';
+import path from 'path';
+
+async function translateProductName(productName: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pythonScript = path.join(process.cwd(), 'scripts', 'translate_for_ebay.py');
+    const pythonProcess = spawn('python', [pythonScript, productName]);
+    
+    let output = '';
+    let errorOutput = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve(output.trim());
+      } else {
+        console.warn(`翻訳に失敗、元のテキストを使用: ${errorOutput}`);
+        resolve(productName); // 翻訳失敗時は元のテキストを使用
+      }
+    });
+  });
+}
+
+async function getExchangeRate(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const pythonScript = path.join(process.cwd(), 'scripts', 'get_exchange_rate.py');
+    const pythonProcess = spawn('python', [pythonScript]);
+    
+    let output = '';
+    let errorOutput = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const rate = parseFloat(output.trim());
+          if (!isNaN(rate) && rate > 0) {
+            resolve(rate);
+          } else {
+            console.warn('為替レート取得失敗、フォールバックレートを使用: 150');
+            resolve(150);
+          }
+        } catch (e) {
+          console.warn('為替レート解析失敗、フォールバックレートを使用: 150');
+          resolve(150);
+        }
+      } else {
+        console.warn(`為替レート取得失敗、フォールバックレートを使用: ${errorOutput}`);
+        resolve(150); // フォールバックレート
+      }
+    });
+  });
+}
 
 async function handleEbaySearch(productName: string | null, janCode: string | null, query: string | null, limit: number = 20) {
   // 検索クエリを構築
   let searchQuery = '';
   if (productName) {
-    searchQuery = productName;
+    searchQuery = await translateProductName(productName);
+    console.log(`翻訳結果: ${productName} → ${searchQuery}`);
   } else if (janCode) {
     searchQuery = janCode;
   } else if (query) {
@@ -15,6 +83,10 @@ async function handleEbaySearch(productName: string | null, janCode: string | nu
   }
 
   console.log(`eBay検索開始: ${searchQuery}`);
+
+  // 為替レートを取得
+  const exchangeRate = await getExchangeRate();
+  console.log(`為替レート: 1 USD = ${exchangeRate} JPY`);
 
   // eBay Finding API設定 - 複数のAPIキーでフォールバック
   const appIds = [
@@ -31,59 +103,125 @@ async function handleEbaySearch(productName: string | null, janCode: string | nu
     try {
       console.log(`eBay API試行中: ${appId?.substring(0, 10)}...`);
       
-      // eBay Finding API呼び出し
-      const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
-        params: {
-          'OPERATION-NAME': 'findItemsByKeywords',
-          'SERVICE-VERSION': '1.0.0',
-          'SECURITY-APPNAME': appId,
-          'RESPONSE-DATA-FORMAT': 'JSON',
-          'REST-PAYLOAD': '',
-          'keywords': searchQuery,
-          'paginationInput.entriesPerPage': Math.min(limit, 100),
-          'sortOrder': 'PricePlusShipping',
-          'itemFilter(0).name': 'Condition',
-          'itemFilter(0).value': 'Used',
-          'itemFilter(1).name': 'ListingType',
-          'itemFilter(1).value': 'FixedPrice'
-        },
-        timeout: 15000
-      });
+      // eBay Browse API呼び出し（OAuth認証が必要）
+      let response;
+      let items = [];
+      
+      try {
+        // まずOAuth2トークンを取得
+        const tokenResponse = await axios.post('https://api.ebay.com/identity/v1/oauth2/token', 
+          'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Basic ${Buffer.from(`${appId}:${process.env.EBAY_CLIENT_SECRET}`).toString('base64')}`
+            },
+            timeout: 10000
+          }
+        );
+        
+        const accessToken = tokenResponse.data.access_token;
+        
+        // Browse APIで検索
+        response = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+          },
+          params: {
+            'q': searchQuery,
+            'limit': Math.min(limit, 50),
+            'sort': 'price',
+            'filter': 'conditionIds:{1000|1500|2000|2500|3000|4000|5000}' // すべてのコンディション
+          },
+          timeout: 15000
+        });
+        
+        items = response.data?.itemSummaries || [];
+        
+      } catch (browseError) {
+        console.log('Browse API失敗、Finding APIにフォールバック');
+        
+        // Finding APIにフォールバック
+        response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
+          params: {
+            'OPERATION-NAME': 'findItemsByKeywords',
+            'SERVICE-VERSION': '1.0.0',
+            'SECURITY-APPNAME': appId,
+            'RESPONSE-DATA-FORMAT': 'JSON',
+            'REST-PAYLOAD': '',
+            'keywords': searchQuery,
+            'paginationInput.entriesPerPage': Math.min(limit, 100),
+            'sortOrder': 'PricePlusShipping'
+            // フィルターを削除してより多くの結果を取得
+          },
+          timeout: 15000
+        });
 
-      const searchResult = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0];
-      const items = searchResult?.item || [];
+        const searchResult = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0];
+        items = searchResult?.item || [];
+      }
       
       console.log(`eBay API成功: ${items.length}件取得`);
       
-      // レスポンス形式を統一
+      // レスポンス形式を統一（Browse APIとFinding APIの両方に対応）
       const formattedResults = items.map((item: any) => {
-        const currentPrice = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0');
-        const shippingCost = parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__ || '0');
+        let currentPrice = 0;
+        let shippingCost = 0;
+        let title = '';
+        let url = '';
+        let imageUrl = '';
+        let condition = 'Used';
+        let sellerName = '';
+        let location = '';
         
-        // USD to JPY conversion (approximate rate: 1 USD = 150 JPY)
-        const exchangeRate = 150;
+        // Browse API形式の場合
+        if (item.price) {
+          currentPrice = parseFloat(item.price.value || '0');
+          title = item.title || '';
+          url = item.itemWebUrl || '';
+          imageUrl = item.image?.imageUrl || '';
+          condition = item.condition || 'Used';
+          sellerName = item.seller?.username || '';
+          location = item.itemLocation?.country || '';
+          shippingCost = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || '0');
+        } 
+        // Finding API形式の場合
+        else {
+          currentPrice = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || '0');
+          shippingCost = parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__ || '0');
+          title = item.title?.[0] || '';
+          url = item.viewItemURL?.[0] || '';
+          imageUrl = item.galleryURL?.[0] || '';
+          condition = item.condition?.[0]?.conditionDisplayName?.[0] || 'Used';
+          sellerName = item.sellerInfo?.[0]?.sellerUserName?.[0] || '';
+          location = item.location?.[0] || '';
+        }
+        
+        // USD to JPY conversion using real-time exchange rate
         const priceJPY = Math.round(currentPrice * exchangeRate);
         const shippingJPY = Math.round(shippingCost * exchangeRate);
         
         return {
           platform: 'ebay',
-          title: item.title?.[0] || '',
-          url: item.viewItemURL?.[0] || '',
-          image_url: item.galleryURL?.[0] || '',
+          title: title,
+          url: url,
+          image_url: imageUrl,
           price: priceJPY,
           shipping_fee: shippingJPY,
           total_price: priceJPY + shippingJPY,
-          condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'Used',
-          store_name: item.sellerInfo?.[0]?.sellerUserName?.[0] || '',
-          location: item.location?.[0] || '',
+          condition: condition,
+          store_name: sellerName,
+          location: location,
           currency: 'JPY',
+          exchange_rate: exchangeRate,
           // 旧形式との互換性
-          item_title: item.title?.[0] || '',
-          item_url: item.viewItemURL?.[0] || '',
-          item_image_url: item.galleryURL?.[0] || '',
+          item_title: title,
+          item_url: url,
+          item_image_url: imageUrl,
           base_price: priceJPY,
-          item_condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'Used',
-          seller_name: item.sellerInfo?.[0]?.sellerUserName?.[0] || ''
+          item_condition: condition,
+          seller_name: sellerName
         };
       });
 
@@ -94,7 +232,8 @@ async function handleEbaySearch(productName: string | null, janCode: string | nu
         total_results: formattedResults.length,
         results: formattedResults,
         timestamp: new Date().toISOString(),
-        api_key_used: appId?.substring(0, 10) + '...'
+        api_key_used: appId?.substring(0, 10) + '...',
+        exchange_rate: exchangeRate
       };
 
     } catch (error) {
@@ -121,62 +260,10 @@ async function handleEbaySearch(productName: string | null, janCode: string | nu
     }
   }
   
-  // すべてのAPIキーが失敗した場合、フォールバック結果を返す
-  console.log('eBay API全て失敗、フォールバック結果を返します');
+  // すべてのAPIキーが失敗した場合、エラーを投げる
+  console.log('eBay API全て失敗、エラーを投げます');
   
-  const fallbackResults = [
-    {
-      platform: 'ebay',
-      title: `${searchQuery} - eBay商品1`,
-      url: 'https://www.ebay.com/itm/sample1',
-      image_url: 'https://i.ebayimg.com/images/g/sample1/s-l300.jpg',
-      price: 3500,
-      shipping_fee: 800,
-      total_price: 4300,
-      condition: 'Used',
-      store_name: 'eBayセラー',
-      location: 'United States',
-      currency: 'JPY',
-      item_title: `${searchQuery} - eBay商品1`,
-      item_url: 'https://www.ebay.com/itm/sample1',
-      item_image_url: 'https://i.ebayimg.com/images/g/sample1/s-l300.jpg',
-      base_price: 3500,
-      item_condition: 'Used',
-      seller_name: 'eBayセラー',
-      note: 'フォールバックデータ（API制限のため）'
-    },
-    {
-      platform: 'ebay',
-      title: `${searchQuery} - eBay商品2`,
-      url: 'https://www.ebay.com/itm/sample2',
-      image_url: 'https://i.ebayimg.com/images/g/sample2/s-l300.jpg',
-      price: 4200,
-      shipping_fee: 0,
-      total_price: 4200,
-      condition: 'New',
-      store_name: 'eBayストア',
-      location: 'Japan',
-      currency: 'JPY',
-      item_title: `${searchQuery} - eBay商品2`,
-      item_url: 'https://www.ebay.com/itm/sample2',
-      item_image_url: 'https://i.ebayimg.com/images/g/sample2/s-l300.jpg',
-      base_price: 4200,
-      item_condition: 'New',
-      seller_name: 'eBayストア',
-      note: 'フォールバックデータ（API制限のため）'
-    }
-  ].slice(0, limit);
-
-  return {
-    success: true,
-    platform: 'ebay',
-    query: searchQuery,
-    total_results: fallbackResults.length,
-    results: fallbackResults,
-    timestamp: new Date().toISOString(),
-    note: 'フォールバックデータを使用（API制限のため）',
-    last_error: lastError instanceof Error ? lastError.message : 'Unknown error'
-  };
+  throw new Error(`eBay検索に失敗しました。しばらく時間をおいて再試行してください。詳細: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
 }
 
 export async function GET(request: NextRequest) {
@@ -222,7 +309,8 @@ export async function GET(request: NextRequest) {
         success: false,
         error: errorMessage,
         platform: 'ebay',
-        details: details
+        details: details,
+        suggestion: 'しばらく時間をおいて再試行してください'
       },
       { status: 500 }
     );
@@ -269,7 +357,8 @@ export async function POST(request: NextRequest) {
         success: false,
         error: errorMessage,
         platform: 'ebay',
-        details: details
+        details: details,
+        suggestion: 'しばらく時間をおいて再試行してください'
       },
       { status: 500 }
     );

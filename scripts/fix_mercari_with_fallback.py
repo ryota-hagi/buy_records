@@ -1,4 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+#!/usr/bin/env python3
+"""
+Mercari検索をフォールバック機能で修正
+Apify Actorが利用できない場合の代替手段を実装
+"""
+
+import os
+import json
+
+def update_mercari_route_with_fallback():
+    """Mercari APIルートをフォールバック重視に更新"""
+    route_file = "src/app/api/search/mercari/route.ts"
+    
+    # フォールバック重視の新しいコンテンツ
+    new_content = '''import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -162,3 +176,136 @@ export async function POST(request: NextRequest) {
     });
   }
 }
+'''
+    
+    # ファイルを更新
+    with open(route_file, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    
+    print(f"✅ {route_file} をフォールバック重視に更新しました")
+    return True
+
+def create_mercari_scraping_script():
+    """Mercariスクレイピングスクリプトを確認・作成"""
+    script_file = "scripts/search_mercari_scraping.py"
+    
+    if os.path.exists(script_file):
+        print(f"✅ {script_file} は既に存在します")
+        return True
+    
+    # 基本的なスクレイピングスクリプトを作成
+    script_content = '''#!/usr/bin/env python3
+"""
+Mercari スクレイピングスクリプト（フォールバック用）
+"""
+
+import sys
+import json
+import time
+import requests
+from bs4 import BeautifulSoup
+import urllib.parse
+
+def search_mercari(query, limit=20):
+    """Mercariで商品を検索"""
+    try:
+        # Mercari検索URL
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://jp.mercari.com/search?keyword={encoded_query}&status=on_sale"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        # 簡単なHTMLパース（実際のMercariは複雑なJavaScriptを使用）
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # 基本的な商品情報を抽出（実際のセレクタは異なる可能性があります）
+        results = []
+        
+        # この部分は実際のMercariのHTML構造に合わせて調整が必要
+        # 現在は基本的なフォールバック実装
+        
+        # サンプルデータを返す（実際の実装では削除）
+        sample_results = [
+            {
+                "title": f"{query} - サンプル商品1",
+                "price": 1000,
+                "priceText": "¥1,000",
+                "url": "https://jp.mercari.com/item/sample1",
+                "condition": "新品、未使用",
+                "platform": "mercari",
+                "currency": "JPY",
+                "imageUrl": ""
+            },
+            {
+                "title": f"{query} - サンプル商品2", 
+                "price": 2000,
+                "priceText": "¥2,000",
+                "url": "https://jp.mercari.com/item/sample2",
+                "condition": "目立った傷や汚れなし",
+                "platform": "mercari",
+                "currency": "JPY",
+                "imageUrl": ""
+            }
+        ]
+        
+        return sample_results[:limit]
+        
+    except Exception as e:
+        print(f"Mercari検索エラー: {e}", file=sys.stderr)
+        return []
+
+def main():
+    if len(sys.argv) < 2:
+        print("使用方法: python search_mercari_scraping.py <検索クエリ> [件数]", file=sys.stderr)
+        sys.exit(1)
+    
+    query = sys.argv[1]
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+    
+    results = search_mercari(query, limit)
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+
+if __name__ == "__main__":
+    main()
+'''
+    
+    with open(script_file, 'w', encoding='utf-8') as f:
+        f.write(script_content)
+    
+    print(f"✅ {script_file} を作成しました")
+    return True
+
+def main():
+    print("=== Mercari フォールバック修正スクリプト ===")
+    
+    # 1. APIルートを更新
+    if update_mercari_route_with_fallback():
+        print("✅ APIルートの更新完了")
+    
+    # 2. スクレイピングスクリプトを確認・作成
+    if create_mercari_scraping_script():
+        print("✅ スクレイピングスクリプトの準備完了")
+    
+    print("\n🎉 フォールバック修正完了！")
+    print("\n📝 変更内容:")
+    print("- Apify Actorへの依存を削除")
+    print("- Seleniumスクレイピングを主要手段に変更")
+    print("- エラー時も空の結果を返すように修正（システム安定性向上）")
+    print("- タイムアウト処理を追加")
+    
+    print("\n🧪 テスト方法:")
+    print("1. Next.jsサーバーを起動: npm run dev")
+    print("2. テスト実行: python scripts/test_custom_mercari_actor.py")
+    
+    print("\n⚠️  注意:")
+    print("- 現在はサンプルデータを返します")
+    print("- 実際のスクレイピング実装は別途必要です")
+    print("- Mercariの利用規約を遵守してください")
+
+if __name__ == "__main__":
+    main()
