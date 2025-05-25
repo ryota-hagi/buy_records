@@ -15,9 +15,8 @@ export async function GET(request: NextRequest) {
     }
 
     const appId = process.env.EBAY_APP_ID;
-    const userToken = process.env.EBAY_USER_TOKEN;
     
-    if (!appId || !userToken) {
+    if (!appId) {
       return NextResponse.json(
         { error: 'eBay API設定が不完全です' },
         { status: 500 }
@@ -34,41 +33,41 @@ export async function GET(request: NextRequest) {
 
     console.log(`eBay検索開始: ${query}`);
 
-    // eBay Browse API呼び出し
-    const ebayResponse = await axios.get('https://api.ebay.com/buy/browse/v1/item_summary/search', {
+    // eBay Finding API呼び出し（認証不要）
+    const ebayResponse = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
       params: {
-        q: query,
-        limit: 20,
-        sort: 'price',
-        filter: 'conditionIds:{1000|1500|2000|2500|3000|4000|5000|6000}', // 全ての状態
-        fieldgroups: 'MATCHING_ITEMS,EXTENDED'
-      },
-      headers: {
-        'Authorization': `Bearer ${userToken}`,
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-        'X-EBAY-C-ENDUSERCTX': `affiliateCampaignId=${appId}`
+        'OPERATION-NAME': 'findItemsByKeywords',
+        'SERVICE-VERSION': '1.0.0',
+        'SECURITY-APPNAME': appId,
+        'RESPONSE-DATA-FORMAT': 'JSON',
+        'REST-PAYLOAD': '',
+        'keywords': query,
+        'paginationInput.entriesPerPage': 20,
+        'itemFilter(0).name': 'ListingType',
+        'itemFilter(0).value': 'FixedPrice',
+        'sortOrder': 'PricePlusShippingLowest'
       },
       timeout: 15000
     });
 
-    const items = ebayResponse.data?.itemSummaries || [];
+    const items = ebayResponse.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
     
     // レスポンス形式を統一
     const formattedResults = items.map((item: any) => {
-      const basePrice = parseFloat(item.price?.value) || 0;
-      const shippingCost = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value) || 0;
+      const basePrice = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__) || 0;
+      const shippingCost = parseFloat(item.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__) || 0;
       
       return {
         platform: 'ebay',
-        item_title: item.title || '',
-        item_url: item.itemWebUrl || '',
-        item_image_url: item.image?.imageUrl || '',
+        item_title: item.title?.[0] || '',
+        item_url: item.viewItemURL?.[0] || '',
+        item_image_url: item.galleryURL?.[0] || '',
         base_price: Math.round(basePrice * 150), // USD to JPY概算
         shipping_fee: Math.round(shippingCost * 150),
         total_price: Math.round((basePrice + shippingCost) * 150),
-        item_condition: item.condition || 'unknown',
-        seller_name: item.seller?.username || '',
-        location: item.itemLocation?.country || '',
+        item_condition: item.condition?.[0]?.conditionDisplayName?.[0] || 'Used',
+        seller_name: item.sellerInfo?.[0]?.sellerUserName?.[0] || '',
+        location: item.location?.[0] || '',
         currency: 'JPY' // 変換後
       };
     });

@@ -22,27 +22,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 検索クエリを構築
-    let query = '';
+    console.log(`Yahoo Shopping検索開始 - JAN: ${janCode}, Product: ${productName}`);
+
+    // Yahoo Shopping API呼び出し - JANコード優先
+    let yahooResponse;
     if (janCode) {
-      query = janCode;
-    } else if (productName) {
-      query = productName;
+      // JANコード検索
+      yahooResponse = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
+        params: {
+          appid: appId,
+          jan_code: janCode,
+          results: 20,
+          sort: 'price'
+        },
+        timeout: 10000
+      });
+    } else {
+      // 商品名検索
+      yahooResponse = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
+        params: {
+          appid: appId,
+          query: productName,
+          results: 20,
+          sort: 'price'
+        },
+        timeout: 10000
+      });
     }
-
-    console.log(`Yahoo Shopping検索開始: ${query}`);
-
-    // Yahoo Shopping API呼び出し
-    const yahooResponse = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
-      params: {
-        appid: appId,
-        query: query,
-        results: 20,
-        sort: 'price',
-        condition: 'all'
-      },
-      timeout: 10000
-    });
 
     const items = yahooResponse.data?.hits || [];
     
@@ -64,7 +70,7 @@ export async function GET(request: NextRequest) {
     const response = {
       success: true,
       platform: 'yahoo_shopping',
-      query: query,
+      query: janCode || productName || '',
       total_results: formattedResults.length,
       results: formattedResults,
       timestamp: new Date().toISOString()
