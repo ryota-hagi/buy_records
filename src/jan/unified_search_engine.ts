@@ -51,6 +51,13 @@ export class UnifiedJanSearchEngine {
     console.log(`[UNIFIED_ENGINE] - YAHOO_SHOPPING_APP_ID: ${!!this.YAHOO_SHOPPING_APP_ID} (length: ${this.YAHOO_SHOPPING_APP_ID.length})`);
     console.log(`[UNIFIED_ENGINE] - EBAY_APP_ID: ${!!this.EBAY_APP_ID} (length: ${this.EBAY_APP_ID.length})`);
     console.log(`[UNIFIED_ENGINE] - GOOGLE_TRANSLATE_API_KEY: ${!!this.GOOGLE_TRANSLATE_API_KEY} (length: ${this.GOOGLE_TRANSLATE_API_KEY.length})`);
+    
+    // 環境変数未設定の場合の警告
+    if (!this.YAHOO_SHOPPING_APP_ID || !this.EBAY_APP_ID) {
+      console.error(`[UNIFIED_ENGINE] CRITICAL ERROR: Required API keys not configured!`);
+      console.error(`[UNIFIED_ENGINE] Missing: ${!this.YAHOO_SHOPPING_APP_ID ? 'YAHOO_SHOPPING_APP_ID ' : ''}${!this.EBAY_APP_ID ? 'EBAY_APP_ID ' : ''}`);
+      console.error(`[UNIFIED_ENGINE] Please configure environment variables in Vercel dashboard`);
+    }
   }
 
   /**
