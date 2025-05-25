@@ -403,7 +403,6 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         item_url: result.item_url || result.url || '',
         item_image_url: result.item_image_url || result.image_url || '',
         base_price: result.price || 0,
-        total_price: result.total_price || result.price || 0,
         shipping_fee: result.shipping_cost || 0,
         item_condition: result.condition || '',
         seller_name: result.seller || ''
