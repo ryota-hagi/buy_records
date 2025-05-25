@@ -42,9 +42,10 @@ export class UnifiedJanSearchEngine {
   private readonly EBAY_APP_ID: string;
 
   constructor() {
+    // 環境変数を取得、未設定の場合はフォールバック値を使用
     this.GOOGLE_TRANSLATE_API_KEY = process.env.GOOGLE_TRANSLATE_API_KEY || '';
-    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || '';
-    this.EBAY_APP_ID = process.env.EBAY_APP_ID || '';
+    this.YAHOO_SHOPPING_APP_ID = process.env.YAHOO_SHOPPING_APP_ID || 'dj00aiZpPVBkdm9nV2F0WTZDVyZzPWNvbnN1bWVyc2VjcmV0Jng5OTk-';
+    this.EBAY_APP_ID = process.env.EBAY_APP_ID || 'ariGaT-records-PRD-1a6ee1171-104bfaa4';
     
     // 環境変数の状況をログ出力
     console.log(`[UNIFIED_ENGINE] Environment variables status:`);
