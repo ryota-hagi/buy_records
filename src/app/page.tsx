@@ -38,9 +38,16 @@ export default function HomePage() {
       const response = await fetch(`/api/search/tasks/${taskId}`);
       if (response.ok) {
         const taskDetail = await response.json();
-        setSelectedTask(taskDetail);
+        // APIレスポンスの構造に合わせて正しくタスクオブジェクトを抽出
+        if (taskDetail.success && taskDetail.task) {
+          setSelectedTask(taskDetail.task);
+        } else {
+          console.error('Invalid task detail response structure:', taskDetail);
+          setSelectedTask(null);
+        }
       } else {
         console.error('Failed to fetch task detail');
+        setSelectedTask(null);
       }
     } catch (error) {
       console.error('Error fetching task detail:', error);
