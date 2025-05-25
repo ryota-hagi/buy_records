@@ -1,5 +1,12 @@
 import axios from 'axios';
 
+// キャッシュエントリの型定義
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  ttl: number; // Time to live in milliseconds
+}
+
 // 検索結果の型定義
 interface SearchResult {
   platform: string;
@@ -40,6 +47,8 @@ export class UnifiedJanSearchEngine {
   private readonly GOOGLE_TRANSLATE_API_KEY: string;
   private readonly YAHOO_SHOPPING_APP_ID: string;
   private readonly EBAY_APP_ID: string;
+  private cache: Map<string, CacheEntry> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5分間のキャッシュ
 
   constructor() {
     // 環境変数を取得
