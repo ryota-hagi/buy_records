@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { JANSearchEngine } from '../../../../lib/search-engine.js';
+import { JANSearchEngine } from '../../../../lib/search-engine';
 
 // 環境変数の確認
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
