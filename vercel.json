@@ -1,10 +1,24 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
+  "version": 2,
+  "buildCommand": "cd buy_records && npm run build",
+  "outputDirectory": "buy_records/.next",
+  "installCommand": "cd buy_records && npm install",
   "framework": "nextjs",
   "functions": {
-    "app/api/**/*.ts": {
+    "buy_records/src/app/api/**/*.ts": {
       "runtime": "nodejs18.x"
     }
-  }
+  },
+  "builds": [
+    {
+      "src": "buy_records/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/buy_records/$1"
+    }
+  ]
 }
