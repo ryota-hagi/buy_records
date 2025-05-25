@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import UnifiedJanSearchEngine from '../../jan/unified_search_engine';
+import axios from 'axios';
+import UnifiedJanSearchEngine from '../../../../jan/unified_search_engine';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -203,10 +204,19 @@ export async function POST(request: NextRequest) {
 
     console.log(`Creating unified search task for JAN code: ${cleanJanCode}`);
 
-    // 統合検索エンジンで商品名を取得
+    // まず商品名のみを取得（軽量な処理）
     const searchEngine = new UnifiedJanSearchEngine();
-    const productNameResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
-    const productName = productNameResult.product_name;
+    let productName = `商品 (JANコード: ${cleanJanCode})`;
+    
+    try {
+      // 商品名取得のみの軽量処理
+      const tempResult = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+      if (tempResult.success && tempResult.product_name) {
+        productName = tempResult.product_name;
+      }
+    } catch (error) {
+      console.warn('Product name fetch failed, using default name:', error);
+    }
 
     // タスクをデータベースに作成（pending状態）
     const taskData = {
@@ -244,7 +254,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Unified search task created: ${task.id}`);
 
-    // バックグラウンドで統合検索を実行開始
+    // バックグラウンドで統合検索を実行開始（実際の検索処理）
     executeUnifiedTaskInBackground(task.id, cleanJanCode).catch(error => {
       console.error(`Background unified task execution failed for task ${task.id}:`, error);
     });
