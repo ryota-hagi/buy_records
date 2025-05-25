@@ -60,20 +60,72 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// JANコードから商品名を取得する関数（Node.js版）
-function getProductNameFromJan(janCode: string): string {
-  const commonProducts: { [key: string]: string } = {
-    '4901777300446': 'サントリー 緑茶 伊右衛門 600ml ペット',
-    '4902370548501': 'Nintendo Switch 本体',
-    '4549292094534': 'ポケットモンスター スカーレット',
-    '4549292094541': 'ポケットモンスター バイオレット',
-    '4902370542912': 'Nintendo Switch Pro コントローラー',
-    '4549292093827': 'スプラトゥーン3',
-    '4549292093834': 'マリオカート8 デラックス',
-    '4549292093841': 'あつまれ どうぶつの森'
-  };
-  
-  return commonProducts[janCode] || `商品 (JANコード: ${janCode})`;
+// JANコードから商品名を取得する関数（API検索結果から取得）
+async function getProductNameFromJan(janCode: string): Promise<string> {
+  try {
+    console.log(`[PRODUCT_NAME] Fetching product name for JAN: ${janCode}`);
+    
+    // まずeBay APIで商品名を取得を試行
+    const ebayAppId = process.env.EBAY_APP_ID;
+    if (ebayAppId) {
+      try {
+        const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
+          params: {
+            'OPERATION-NAME': 'findItemsByKeywords',
+            'SERVICE-VERSION': '1.0.0',
+            'SECURITY-APPNAME': ebayAppId,
+            'RESPONSE-DATA-FORMAT': 'JSON',
+            'REST-PAYLOAD': '',
+            'keywords': janCode,
+            'paginationInput.entriesPerPage': 1
+          },
+          timeout: 3000
+        });
+
+        const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
+        if (items.length > 0 && items[0].title?.[0]) {
+          const productName = items[0].title[0];
+          console.log(`[PRODUCT_NAME] Found product name from eBay: ${productName}`);
+          return productName;
+        }
+      } catch (error) {
+        console.warn(`[PRODUCT_NAME] eBay API failed for product name lookup:`, error);
+      }
+    }
+
+    // eBayで見つからない場合、Yahoo Shopping APIで試行
+    const yahooAppId = process.env.YAHOO_SHOPPING_APP_ID;
+    if (yahooAppId) {
+      try {
+        const response = await axios.get('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch', {
+          params: {
+            appid: yahooAppId,
+            jan_code: janCode,
+            results: 1,
+            output: 'json'
+          },
+          timeout: 3000
+        });
+
+        const items = response.data?.hits || [];
+        if (items.length > 0 && items[0].name) {
+          const productName = items[0].name;
+          console.log(`[PRODUCT_NAME] Found product name from Yahoo: ${productName}`);
+          return productName;
+        }
+      } catch (error) {
+        console.warn(`[PRODUCT_NAME] Yahoo API failed for product name lookup:`, error);
+      }
+    }
+
+    // どちらのAPIでも見つからない場合はデフォルト名を返す
+    console.warn(`[PRODUCT_NAME] No product name found for JAN: ${janCode}`);
+    return `商品 (JANコード: ${janCode})`;
+    
+  } catch (error) {
+    console.error(`[PRODUCT_NAME] Error fetching product name:`, error);
+    return `商品 (JANコード: ${janCode})`;
+  }
 }
 
 // JANコード検索を実行する関数（Node.js版 - Vercel対応）
@@ -391,8 +443,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`Creating real search task for JAN code: ${cleanJanCode}`);
 
-    // JANコードから商品名を取得
-    const productName = getProductNameFromJan(cleanJanCode);
+    // JANコードから商品名を取得（API検索）
+    const productName = await getProductNameFromJan(cleanJanCode);
 
     // タスクをデータベースに作成（pending状態）
     const taskData = {
