@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-
-const execAsync = promisify(exec);
+const { JANSearchEngine } = require('../../../../lib/search-engine.js');
 
 // 環境変数の確認
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,127 +12,27 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// JANコードから商品名を取得する関数
+// JANコードから商品名を取得する関数（Node.js版）
 async function getProductNameFromJan(janCode: string): Promise<string> {
   try {
-    const projectRoot = path.join(process.cwd(), '..');
-    
-    // Pythonスクリプトを実行して商品名を取得
-    const command = `cd "${projectRoot}" && python -c "
-import sys
-import os
-import warnings
-warnings.filterwarnings('ignore')
-
-# 標準エラー出力を無効化
-sys.stderr = open(os.devnull, 'w')
-
-sys.path.append('.')
-from src.jan.jan_lookup import get_product_name_from_jan
-
-try:
-    product_name = get_product_name_from_jan('${janCode}')
-    if product_name:
-        print(product_name)
-    else:
-        print('商品 (JANコード: ${janCode})')
-except Exception as e:
-    print('商品 (JANコード: ${janCode})')
-" 2>/dev/null`;
-
-    const { stdout } = await execAsync(command);
-    const productName = stdout.trim();
-    
-    return productName || `商品 (JANコード: ${janCode})`;
-    
+    const searchEngine = new JANSearchEngine();
+    return searchEngine.getProductNameFromJan(janCode);
   } catch (error) {
     console.error('Error getting product name:', error);
     return `商品 (JANコード: ${janCode})`;
   }
 }
 
-// JANコード検索を実行する関数
+// JANコード検索を実行する関数（Node.js版）
 async function executeJanSearch(janCode: string): Promise<any[]> {
   try {
-    const projectRoot = path.join(process.cwd(), '..');
+    console.log(`Starting Node.js search for JAN code: ${janCode}`);
     
-    // Pythonスクリプトを実行（標準エラー出力を無視し、JSONのみを出力）
-    const command = `cd "${projectRoot}" && python -c "
-import sys
-import os
-import json
-import warnings
-warnings.filterwarnings('ignore')
-
-# 標準エラー出力を無効化
-sys.stderr = open(os.devnull, 'w')
-
-sys.path.append('.')
-from src.jan.search_engine import JANSearchEngine
-
-try:
-    engine = JANSearchEngine()
-    results = engine.search_by_jan('${janCode}', limit=20)
-    print('JSON_START')
-    print(json.dumps(results, ensure_ascii=False))
-    print('JSON_END')
-except Exception as e:
-    print('JSON_START')
-    print(json.dumps({'error': str(e)}, ensure_ascii=False))
-    print('JSON_END')
-" 2>/dev/null`;
-
-    const { stdout, stderr } = await execAsync(command);
+    const searchEngine = new JANSearchEngine();
+    const results = await searchEngine.searchByJan(janCode, 20);
     
-    if (!stdout.trim()) {
-      throw new Error('No output from Python script');
-    }
-    
-    // JSON部分のみを抽出
-    const lines = stdout.split('\n');
-    let jsonStartIndex = -1;
-    let jsonEndIndex = -1;
-    
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim() === 'JSON_START') {
-        jsonStartIndex = i + 1;
-      } else if (lines[i].trim() === 'JSON_END') {
-        jsonEndIndex = i;
-        break;
-      }
-    }
-    
-    if (jsonStartIndex === -1 || jsonEndIndex === -1) {
-      // フォールバック: 最後の行がJSONかどうかチェック
-      const lastLine = lines[lines.length - 1].trim();
-      if (lastLine.startsWith('[') || lastLine.startsWith('{')) {
-        try {
-          const result = JSON.parse(lastLine);
-          if (result.error) {
-            throw new Error(result.error);
-          }
-          return Array.isArray(result) ? result : [];
-        } catch (parseError) {
-          throw new Error('Failed to parse search results');
-        }
-      }
-      throw new Error('No valid JSON found in output');
-    }
-    
-    const jsonLines = lines.slice(jsonStartIndex, jsonEndIndex);
-    const jsonString = jsonLines.join('\n').trim();
-    
-    if (!jsonString) {
-      throw new Error('Empty JSON output');
-    }
-    
-    const result = JSON.parse(jsonString);
-    
-    if (result.error) {
-      throw new Error(result.error);
-    }
-    
-    return Array.isArray(result) ? result : [];
+    console.log(`Node.js search completed: ${results.length} results found`);
+    return results;
     
   } catch (error) {
     console.error('Error executing JAN search:', error);
@@ -252,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Creating search task for JAN code: ${cleanJanCode}`);
 
-    // JANコードから商品名を取得
+    // JANコードから商品名を取得（Node.js版）
     const productName = await getProductNameFromJan(cleanJanCode);
 
     // タスクをデータベースに作成（pending状態）
@@ -268,7 +164,7 @@ export async function POST(request: NextRequest) {
           timestamp: new Date().toISOString(),
           step: 'task_created',
           status: 'info',
-          message: 'タスクが作成されました'
+          message: 'タスクが作成されました（Node.js版）'
         }
       ],
       created_at: new Date().toISOString(),
@@ -318,7 +214,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// バックグラウンドでタスクを実行する関数
+// バックグラウンドでタスクを実行する関数（Node.js版）
 async function executeTaskInBackground(taskId: string, janCode: string) {
   try {
     // タスクを実行中に更新
@@ -332,7 +228,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_started',
             status: 'info',
-            message: '検索を開始しました'
+            message: 'Node.js検索エンジンで検索を開始しました'
           }
         ]
       })
@@ -340,7 +236,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
 
     console.log(`Starting background search for task ${taskId}, JAN: ${janCode}`);
 
-    // JANコード検索を実行
+    // JANコード検索を実行（Node.js版）
     const searchResults = await executeJanSearch(janCode);
     
     console.log(`Background search completed for task ${taskId}. Found ${searchResults.length} results`);
@@ -363,7 +259,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_completed',
             status: 'success',
-            message: `検索が完了しました（${searchResults.length}件の結果）`
+            message: `Node.js検索エンジンで検索が完了しました（${searchResults.length}件の結果）`
           }
         ]
       })
@@ -414,7 +310,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_failed',
             status: 'error',
-            message: `検索に失敗しました: ${(error as Error).message}`
+            message: `Node.js検索エンジンで検索に失敗しました: ${(error as Error).message}`
           }
         ]
       })

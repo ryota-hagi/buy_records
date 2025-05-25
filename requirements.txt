@@ -14,6 +14,11 @@ tqdm>=4.65.0
 # 型ヒント
 typing-extensions>=4.5.0
 
+# Webスクレイピング
+selenium>=4.15.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
 # Mercari API
 mercapi>=0.1.0
 
@@ -22,3 +27,6 @@ supabase>=0.7.1
 
 # Google Cloud Translation API
 google-cloud-translate>=3.12.0
+
+# 並行処理
+concurrent-futures>=3.1.1
