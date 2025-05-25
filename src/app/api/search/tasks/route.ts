@@ -358,30 +358,47 @@ async function executeUnifiedTaskInBackground(taskId: string, janCode: string) {
 
     // 検索結果をsearch_resultsテーブルにも保存
     if (searchResult.finalResults.length > 0) {
-      const resultsData = searchResult.finalResults.map((result: SearchResult) => ({
-        task_id: taskId,
-        platform: result.platform || 'unknown',
-        item_title: result.item_title || '',
-        item_url: result.item_url || '',
-        item_image_url: result.item_image_url || '',
-        base_price: result.price || 0,
-        shipping_fee: result.shipping_cost || 0,
-        total_price: result.total_price || 0,
-        item_condition: result.condition || '',
-        seller_name: result.seller || ''
-      }));
-
-      console.log(`Inserting ${resultsData.length} unified search results into search_results table for task ${taskId}`);
+      console.log(`[SAVE_RESULTS] Preparing to save ${searchResult.finalResults.length} results for task ${taskId}`);
+      console.log(`[SAVE_RESULTS] Sample result structure:`, JSON.stringify(searchResult.finalResults[0], null, 2));
       
-      const { error: insertError } = await supabase
+      const resultsData = searchResult.finalResults.map((result: SearchResult, index: number) => {
+        const mappedResult = {
+          task_id: taskId,
+          platform: result.platform || 'unknown',
+          item_title: result.item_title || '',
+          item_url: result.item_url || '',
+          item_image_url: result.item_image_url || '',
+          base_price: result.price || 0,
+          shipping_fee: result.shipping_cost || 0,
+          total_price: result.total_price || 0,
+          item_condition: result.condition || '',
+          seller_name: result.seller || ''
+        };
+        
+        if (index === 0) {
+          console.log(`[SAVE_RESULTS] Sample mapped result:`, JSON.stringify(mappedResult, null, 2));
+        }
+        
+        return mappedResult;
+      });
+
+      console.log(`[SAVE_RESULTS] Inserting ${resultsData.length} unified search results into search_results table for task ${taskId}`);
+      
+      const { data: insertedData, error: insertError } = await supabase
         .from('search_results')
-        .insert(resultsData);
+        .insert(resultsData)
+        .select();
         
       if (insertError) {
-        console.error(`Error inserting unified search results for task ${taskId}:`, insertError);
+        console.error(`[SAVE_RESULTS] Error inserting unified search results for task ${taskId}:`, insertError);
+        console.error(`[SAVE_RESULTS] Error details:`, JSON.stringify(insertError, null, 2));
+        console.error(`[SAVE_RESULTS] Sample data that failed:`, JSON.stringify(resultsData[0], null, 2));
       } else {
-        console.log(`Successfully inserted ${resultsData.length} unified search results for task ${taskId}`);
+        console.log(`[SAVE_RESULTS] Successfully inserted ${resultsData.length} unified search results for task ${taskId}`);
+        console.log(`[SAVE_RESULTS] Inserted data count:`, insertedData?.length || 0);
       }
+    } else {
+      console.log(`[SAVE_RESULTS] No results to save for task ${taskId}`);
     }
 
     console.log(`Unified search task ${taskId} completed successfully`);
