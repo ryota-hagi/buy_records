@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-const { JANSearchEngine } = require('../../../lib/search-engine.js');
+import { JANSearchEngine } from '../../../../lib/search-engine.js';
 
 // 環境変数の確認
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,9 +33,9 @@ async function executeJanSearch(janCode: string): Promise<any> {
     const searchResult = await searchEngine.searchByJan(janCode, 20);
     
     console.log(`Node.js search completed:`);
-    console.log(`- Final results: ${searchResult.finalResults.length} items`);
-    console.log(`- Platform counts: eBay ${searchResult.summary.platformCounts.ebay}, Yahoo ${searchResult.summary.platformCounts.yahoo_shopping}, Mercari ${searchResult.summary.platformCounts.mercari}`);
-    console.log(`- Total found: ${searchResult.summary.totalFound} items`);
+    console.log(`- Final results: ${(searchResult as any).finalResults.length} items`);
+    console.log(`- Platform counts: eBay ${(searchResult as any).summary.platformCounts.ebay}, Yahoo ${(searchResult as any).summary.platformCounts.yahoo_shopping}, Mercari ${(searchResult as any).summary.platformCounts.mercari}`);
+    console.log(`- Total found: ${(searchResult as any).summary.totalFound} items`);
     
     return searchResult;
     
@@ -244,7 +244,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
     // JANコード検索を実行（Node.js版）
     const searchResult = await executeJanSearch(janCode);
     
-    console.log(`Background search completed for task ${taskId}. Found ${searchResult.finalResults.length} final results from ${searchResult.summary.totalFound} total`);
+    console.log(`Background search completed for task ${taskId}. Found ${(searchResult as any).finalResults.length} final results from ${(searchResult as any).summary.totalFound} total`);
 
     // タスクを完了状態に更新（プラットフォーム別結果とサマリーを含む）
     await supabase
@@ -253,11 +253,11 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         status: 'completed',
         result: {
           integrated_results: {
-            count: searchResult.finalResults.length,
-            items: searchResult.finalResults
+            count: (searchResult as any).finalResults.length,
+            items: (searchResult as any).finalResults
           },
-          platform_results: searchResult.platformResults,
-          summary: searchResult.summary
+          platform_results: (searchResult as any).platformResults,
+          summary: (searchResult as any).summary
         },
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -266,15 +266,15 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_completed',
             status: 'success',
-            message: `Node.js検索エンジンで検索が完了しました（${searchResult.finalResults.length}件の最終結果、${searchResult.summary.totalFound}件の総取得数）`
+            message: `Node.js検索エンジンで検索が完了しました（${(searchResult as any).finalResults.length}件の最終結果、${(searchResult as any).summary.totalFound}件の総取得数）`
           }
         ]
       })
       .eq('id', taskId);
 
     // 検索結果をsearch_resultsテーブルにも保存（最終結果のみ）
-    if (searchResult.finalResults.length > 0) {
-      const resultsData = searchResult.finalResults.map((result: any) => ({
+    if ((searchResult as any).finalResults.length > 0) {
+      const resultsData = (searchResult as any).finalResults.map((result: any) => ({
         task_id: taskId,
         platform: result.platform || 'unknown',
         item_title: result.item_title || result.title || '',
