@@ -66,17 +66,11 @@ class JANSearchEngine {
 
       console.log(`Platform results: eBay ${ebayResults.length}, Yahoo ${yahooResults.length}, Mercari ${mercariResults.length}`);
 
-      // API呼び出しが全て失敗した場合、実際の検索時間をシミュレート
+      // API呼び出しが全て失敗した場合
       const totalResults = ebayResults.length + yahooResults.length + mercariResults.length;
       if (totalResults === 0) {
-        console.log('No results from APIs, simulating real search time...');
-        const minSearchTime = 30000; // 30秒
-        const elapsed = Date.now() - startTime;
-        if (elapsed < minSearchTime) {
-          await new Promise(resolve => setTimeout(resolve, minSearchTime - elapsed));
-        }
-        
-        // 実際の検索失敗を示すエラーメッセージ
+        console.log('No results from APIs - all platforms failed');
+        // Vercel環境では30秒待機を削除（タイムアウト対策）
         throw new Error('API検索に失敗しました。eBay、Yahoo Shopping、メルカリのAPIが利用できません。');
       }
 
@@ -150,7 +144,7 @@ class JANSearchEngine {
           'itemFilter(1).name': 'Condition',
           'itemFilter(1).value': 'New'
         },
-        timeout: 30000
+        timeout: 5000
       });
 
       const items = response.data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
@@ -198,7 +192,7 @@ class JANSearchEngine {
           sort: 'price',
           output: 'json'
         },
-        timeout: 30000
+        timeout: 5000
       });
 
       const items = response.data?.hits || [];
@@ -246,7 +240,7 @@ class JANSearchEngine {
           'User-Agent': this.userAgent,
           'Accept': 'application/json'
         },
-        timeout: 30000
+        timeout: 5000
       });
 
       const items = response.data?.data || [];
@@ -528,7 +522,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// バックグラウンドでタスクを実行する関数（実際のAPI検索版）
+// バックグラウンドでタスクを実行する関数（Vercel対応版）
 async function executeTaskInBackground(taskId: string, janCode: string) {
   try {
     // タスクを実行中に更新
@@ -542,18 +536,18 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_started',
             status: 'info',
-            message: '実際のAPI検索を開始しました（eBay API + Yahoo API + Mercari）'
+            message: 'Vercel環境での高速検索を開始しました（タイムアウト対策版）'
           }
         ]
       })
       .eq('id', taskId);
 
-    console.log(`Starting real background search for task ${taskId}, JAN: ${janCode}`);
+    console.log(`Starting Vercel-optimized search for task ${taskId}, JAN: ${janCode}`);
 
-    // 実際のJANコード検索を実行
+    // Vercelの制限に対応した高速検索（5秒以内で完了）
     const searchResult = await executeJanSearch(janCode);
     
-    console.log(`Real background search completed for task ${taskId}. Found ${searchResult.finalResults.length} final results from ${searchResult.summary.totalFound} total`);
+    console.log(`Vercel search completed for task ${taskId}. Found ${searchResult.finalResults.length} results`);
 
     // タスクを完了状態に更新
     await supabase
@@ -575,7 +569,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_completed',
             status: 'success',
-            message: `実際のAPI検索が完了しました（${searchResult.finalResults.length}件の最終結果、${searchResult.summary.totalFound}件の総取得数）`
+            message: `Vercel環境での検索が完了しました（${searchResult.finalResults.length}件の結果）`
           }
         ]
       })
@@ -595,7 +589,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
         seller_name: result.seller || ''
       }));
 
-      console.log(`Inserting ${resultsData.length} real search results into search_results table for task ${taskId}`);
+      console.log(`Inserting ${resultsData.length} search results into search_results table for task ${taskId}`);
       
       const { error: insertError } = await supabase
         .from('search_results')
@@ -604,14 +598,14 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
       if (insertError) {
         console.error(`Error inserting search results for task ${taskId}:`, insertError);
       } else {
-        console.log(`Successfully inserted ${resultsData.length} real search results for task ${taskId}`);
+        console.log(`Successfully inserted ${resultsData.length} search results for task ${taskId}`);
       }
     }
 
-    console.log(`Real search task ${taskId} completed successfully`);
+    console.log(`Vercel search task ${taskId} completed successfully`);
 
   } catch (error) {
-    console.error(`Error executing real background task ${taskId}:`, error);
+    console.error(`Error executing Vercel task ${taskId}:`, error);
     
     // タスクを失敗状態に更新
     await supabase
@@ -625,7 +619,7 @@ async function executeTaskInBackground(taskId: string, janCode: string) {
             timestamp: new Date().toISOString(),
             step: 'search_failed',
             status: 'error',
-            message: `実際のAPI検索に失敗しました: ${(error as Error).message}`
+            message: `Vercel環境での検索に失敗しました: ${(error as Error).message}`
           }
         ]
       })
