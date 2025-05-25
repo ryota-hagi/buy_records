@@ -6,10 +6,15 @@ import path from 'path';
 
 const execAsync = promisify(exec);
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// 環境変数の確認
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase環境変数が設定されていません。NEXT_PUBLIC_SUPABASE_URLとNEXT_PUBLIC_SUPABASE_ANON_KEYを確認してください。');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // JANコードから商品名を取得する関数
 async function getProductNameFromJan(janCode: string): Promise<string> {
