@@ -61,6 +61,11 @@ export class UnifiedJanSearchEngine {
     
     try {
       console.log(`[UNIFIED] Starting unified JAN search for: ${janCode}`);
+      console.log(`[UNIFIED] CRITICAL DEBUG - Environment variables:`);
+      console.log(`[UNIFIED] - YAHOO_SHOPPING_APP_ID exists: ${!!this.YAHOO_SHOPPING_APP_ID}`);
+      console.log(`[UNIFIED] - YAHOO_SHOPPING_APP_ID length: ${this.YAHOO_SHOPPING_APP_ID.length}`);
+      console.log(`[UNIFIED] - EBAY_APP_ID exists: ${!!this.EBAY_APP_ID}`);
+      console.log(`[UNIFIED] - EBAY_APP_ID length: ${this.EBAY_APP_ID.length}`);
       
       // Step 1: JANコードから商品名を特定
       const productName = await this.getProductNameFromJan(janCode);
