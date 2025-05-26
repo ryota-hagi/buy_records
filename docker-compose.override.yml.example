@@ -1,0 +1,54 @@
+# 開発環境用Docker Composeオーバーライドファイル
+# このファイルをコピーして docker-compose.override.yml として使用してください
+# cp docker-compose.override.yml.example docker-compose.override.yml
+
+version: '3.8'
+
+services:
+  app:
+    # 開発環境では本番用サービスを無効化
+    profiles:
+      - production
+
+  # 開発環境用サービスを有効化
+  app-dev:
+    profiles: []  # デフォルトプロファイルで実行
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+    # ヘルスチェックを簡略化（開発環境用）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 開発用データベース（オプション）
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: records_dev
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   profiles:
+  #     - database
+
+# volumes:
+#   postgres_data:

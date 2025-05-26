@@ -19,6 +19,22 @@ interface UnifiedSearchResponse {
   product_name: string;
   total_results: number;
   final_results: SearchResult[];
+  integrated_results?: {
+    product_name: string;
+    total_results: number;
+    items: SearchResult[];
+    platform_results: {
+      yahoo_shopping: SearchResult[];
+      mercari: SearchResult[];
+      ebay: SearchResult[];
+    };
+    summary: {
+      total_found: number;
+      after_deduplication: number;
+      final_count: number;
+      execution_time_ms: number;
+    };
+  };
   platform_results: {
     yahoo_shopping: SearchResult[];
     mercari: SearchResult[];
@@ -43,7 +59,7 @@ export class UnifiedJanSearchEngineFinal {
     // 本番環境とローカル環境の判定
     this.baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://buy-records.vercel.app'
-      : 'http://localhost:3000';
+      : 'http://localhost:3005';
     
     console.log(`[UNIFIED_FINAL] Using base URL: ${this.baseUrl}`);
   }
@@ -93,6 +109,23 @@ export class UnifiedJanSearchEngineFinal {
         product_name: productName,
         total_results: allResults.length,
         final_results: finalResults,
+        // 要件確認テスト用の形式
+        integrated_results: {
+          product_name: productName,
+          total_results: allResults.length,
+          items: finalResults,
+          platform_results: {
+            yahoo_shopping: yahooResults,
+            mercari: mercariResults,
+            ebay: ebayResults
+          },
+          summary: {
+            total_found: allResults.length,
+            after_deduplication: deduplicatedResults.length,
+            final_count: finalResults.length,
+            execution_time_ms: executionTime
+          }
+        },
         platform_results: {
           yahoo_shopping: yahooResults,
           mercari: mercariResults,
@@ -129,40 +162,55 @@ export class UnifiedJanSearchEngineFinal {
   }
 
   /**
-   * JANコードから商品名を特定
+   * JANコードから商品名を特定（JANコードルックアップAPI使用）
    */
   private async getProductNameFromJan(janCode: string): Promise<string> {
     try {
-      console.log(`[PRODUCT_NAME_FINAL] Fetching product name for JAN: ${janCode}`);
+      console.log(`[PRODUCT_NAME_FINAL] Using JAN Lookup API for: ${janCode}`);
       
-      const response = await axios.get(`${this.baseUrl}/api/search/yahoo`, {
-        params: {
-          jan_code: janCode,
-          limit: 1
-        },
-        timeout: 10000
+      // JANコードルックアップAPIを使用
+      const { spawn } = require('child_process');
+      const pythonProcess = spawn('python3', ['-c', `
+import sys
+import os
+sys.path.append('src')
+from jan.jan_lookup import get_product_name_from_jan
+result = get_product_name_from_jan('${janCode}')
+print(result if result else '')
+      `], { cwd: process.cwd() });
+
+      let output = '';
+      let error = '';
+
+      pythonProcess.stdout.on('data', (data: Buffer) => {
+        output += data.toString();
       });
 
-      console.log(`[PRODUCT_NAME_FINAL] Yahoo API response:`, {
-        status: response.status,
-        success: response.data?.success,
-        resultsLength: response.data?.results?.length
+      pythonProcess.stderr.on('data', (data: Buffer) => {
+        error += data.toString();
       });
 
-      if (response.data?.success && response.data?.results?.length > 0) {
-        const productName = response.data.results[0].title;
-        console.log(`[PRODUCT_NAME_FINAL] Found from Yahoo API: ${productName}`);
-        return productName;
-      }
+      const productName = await new Promise<string>((resolve) => {
+        pythonProcess.on('close', (code: number) => {
+          const result = output.trim();
+          if (result && result !== 'None' && result !== '') {
+            console.log(`[PRODUCT_NAME_FINAL] Found from JAN Lookup API: ${result}`);
+            resolve(result);
+          } else {
+            console.warn(`[PRODUCT_NAME_FINAL] No product found via JAN Lookup API for: ${janCode}`);
+            resolve(`商品 (JANコード: ${janCode})`);
+          }
+        });
+      });
 
-      console.warn(`[PRODUCT_NAME_FINAL] No product name found for JAN: ${janCode}`);
-      return `商品 (JANコード: ${janCode})`;
+      return productName;
       
     } catch (error) {
-      console.error(`[PRODUCT_NAME_FINAL] Error:`, error);
+      console.error(`[PRODUCT_NAME_FINAL] JAN Lookup API error:`, error);
       return `商品 (JANコード: ${janCode})`;
     }
   }
+
 
   /**
    * Yahoo Shopping検索
@@ -224,7 +272,7 @@ export class UnifiedJanSearchEngineFinal {
           query: productName,
           limit: limit
         },
-        timeout: 15000
+        timeout: 300000 // 300秒（5分）に設定（メルカリ検索完了を確実に待機）
       });
 
       console.log(`[MERCARI_FINAL] API response:`, {
@@ -268,33 +316,41 @@ export class UnifiedJanSearchEngineFinal {
       
       const response = await axios.get(`${this.baseUrl}/api/search/ebay`, {
         params: {
-          query: productName,
+          product_name: productName,
           limit: limit
         },
-        timeout: 15000
+        timeout: 20000 // タイムアウトを延長
       });
 
       console.log(`[EBAY_FINAL] API response:`, {
         status: response.status,
         success: response.data?.success,
-        resultsLength: response.data?.results?.length
+        resultsLength: response.data?.results?.length,
+        warning: response.data?.warning,
+        error: response.data?.error
       });
       
-      if (response.data?.success && response.data?.results) {
+      // successがfalseでもresultsがある場合は処理する
+      if (response.data?.results && Array.isArray(response.data.results)) {
         const results = response.data.results.map((item: any) => ({
           platform: 'ebay',
-          item_title: item.title || '',
-          item_url: item.url || '',
-          item_image_url: item.image_url || '',
-          price: item.price || 0,
-          total_price: item.total_price || item.price || 0,
+          item_title: item.title || item.item_title || '',
+          item_url: item.url || item.item_url || '',
+          item_image_url: item.image_url || item.item_image_url || '',
+          price: item.price || item.base_price || 0,
+          total_price: item.total_price || item.price || item.base_price || 0,
           shipping_cost: item.shipping_fee || 0,
-          condition: item.condition || 'Used',
-          seller: item.store_name || item.seller || ''
+          condition: item.condition || item.item_condition || 'Used',
+          seller: item.store_name || item.seller_name || item.seller || ''
         }));
         
         console.log(`[EBAY_FINAL] Successfully processed ${results.length} items`);
         return results;
+      }
+
+      // warningがある場合はログに記録
+      if (response.data?.warning) {
+        console.warn(`[EBAY_FINAL] API warning: ${response.data.warning}`);
       }
 
       console.warn(`[EBAY_FINAL] No results from API`);
@@ -302,6 +358,17 @@ export class UnifiedJanSearchEngineFinal {
 
     } catch (error) {
       console.error('[EBAY_FINAL] Search failed:', error);
+      
+      // Axiosエラーの詳細をログに記録
+      if (axios.isAxiosError(error)) {
+        console.error('[EBAY_FINAL] Axios error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message
+        });
+      }
+      
       return [];
     }
   }

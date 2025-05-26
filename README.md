@@ -30,7 +30,69 @@ JANコードを入力するだけで、複数のプラットフォーム（Disco
 
 ## セットアップ
 
-### 1. 環境変数の設定
+### Docker環境での開発（推奨）
+
+#### 1. 環境変数の設定
+
+**自動セットアップ（推奨）**:
+```bash
+# 既存の.envファイルからDocker用環境変数を自動設定
+./scripts/setup-docker-env.sh
+```
+
+**手動セットアップ**:
+```bash
+# Docker用環境変数ファイルを作成
+cp .env.docker.example .env.docker
+```
+
+`.env.docker`ファイルを編集して以下の値を設定：
+
+```env
+# Next.js用Supabase設定（必須）
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# eBay API設定
+EBAY_APP_ID=your_ebay_app_id_here
+
+# Yahoo!ショッピングAPI設定
+YAHOO_SHOPPING_APP_ID=your_yahoo_shopping_app_id_here
+
+# その他のAPI設定...
+```
+
+#### 2. 開発環境用オーバーライドファイルの設定
+
+```bash
+# 開発環境用設定ファイルを作成
+cp docker-compose.override.yml.example docker-compose.override.yml
+```
+
+#### 3. Docker環境の起動
+
+```bash
+# 開発環境での起動（ホットリロード対応）
+docker-compose up --build
+
+# バックグラウンドで起動
+docker-compose up -d --build
+
+# 本番環境での起動
+docker-compose --profile production up --build
+```
+
+#### 4. 環境変数の確認
+
+```bash
+# ヘルスチェックで環境変数を確認
+curl http://localhost:3000/api/health
+```
+
+### ローカル環境での開発
+
+#### 1. 環境変数の設定
 
 ```bash
 cp .env.example .env
@@ -55,29 +117,27 @@ YAHOO_SHOPPING_APP_ID=your_yahoo_shopping_app_id
 YAHOO_APP_ID=your_yahoo_app_id
 ```
 
-### 2. データベースセットアップ
+#### 2. データベースセットアップ
 
 ```bash
 # テーブル作成
 psql -h your_supabase_host -U postgres -d postgres -f scripts/create_jan_search_tables.sql
 ```
 
-### 3. 依存関係のインストール
+#### 3. 依存関係のインストール
 
 ```bash
 # Python依存関係
 pip install -r requirements.txt
 
 # Node.js依存関係
-cd buy_records
 npm install
 ```
 
-### 4. システム起動
+#### 4. システム起動
 
 ```bash
 # フロントエンド起動
-cd buy_records
 npm run dev
 
 # バックエンド検索エンジン（別ターミナル）

@@ -18,7 +18,7 @@ interface SearchResult {
 async function searchAllPlatforms(productName: string | null, janCode: string | null, query: string | null, limit: number = 20) {
   const baseUrl = process.env.NODE_ENV === 'production' 
     ? 'https://buy-records.vercel.app' 
-    : 'http://localhost:3000';
+    : `http://localhost:${process.env.PORT || 3000}`;
   
   // 検索クエリを構築
   let searchQuery = '';
@@ -47,7 +47,7 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   const searchPromises = platforms.map(async (platform) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
       // 正しいパラメータ名を使用
       const params = new URLSearchParams();

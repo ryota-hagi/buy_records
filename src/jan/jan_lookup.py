@@ -181,8 +181,8 @@ def get_product_name_from_jan(jan_code: str) -> Optional[str]:
     """
     # 実際のAPIを使用してJANコードから商品名を取得
     try:
-        from ..utils.config import get_config
-        app_id = get_config("JAN_LOOKUP_APP_ID", "")
+        import os
+        app_id = os.getenv("JAN_LOOKUP_APP_ID", "")
         
         if app_id:
             client = JANLookupClient(app_id)

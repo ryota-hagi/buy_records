@@ -12,7 +12,15 @@ buy_records/out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.docker
 buy_records/.env.local
+
+# Docker関連
+docker-compose.override.yml
+.docker/
+docker-data/
+*.dockerfile.tmp
+.dockerignore.tmp
 
 # Logs
 *.log

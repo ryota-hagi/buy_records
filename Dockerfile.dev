@@ -1,0 +1,29 @@
+# 開発環境用Dockerfile
+# ホットリロード対応
+
+FROM node:20-alpine
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# 必要なパッケージをインストール
+RUN apk add --no-cache libc6-compat curl
+
+# package.jsonとpackage-lock.jsonをコピー
+COPY package*.json ./
+
+# 依存関係をインストール（開発用依存関係も含む）
+RUN npm ci
+
+# アプリケーションのソースコードをコピー
+COPY . .
+
+# ポートを公開
+EXPOSE 3000
+
+# 環境変数を設定
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# 開発サーバーを起動（Turbopack使用）
+CMD ["npm", "run", "dev"]

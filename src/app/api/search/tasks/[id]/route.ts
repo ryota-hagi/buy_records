@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// 環境変数の確認
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Supabase環境変数が設定されていません。NEXT_PUBLIC_SUPABASE_URLとNEXT_PUBLIC_SUPABASE_ANON_KEYを確認してください。');
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Supabaseクライアント初期化
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // GET: 特定のタスクの詳細と検索結果を取得
 export async function GET(
@@ -47,46 +43,11 @@ export async function GET(
       );
     }
 
-    // 検索結果を取得（総額でソート、最大20件）
-    const { data: results, error: resultsError } = await supabase
-      .from('search_results')
-      .select('*')
-      .eq('task_id', taskId)
-      .order('total_price', { ascending: true })
-      .limit(20);
-
-    if (resultsError) {
-      console.error('Database query error:', resultsError);
-      return NextResponse.json(
-        { error: '検索結果の取得に失敗しました' },
-        { status: 500 }
-      );
-    }
-
+    // タスクのresultフィールドから結果を取得（新しい形式）
     let mappedResults: any[] = [];
-
-    // search_resultsテーブルにデータがある場合
-    if (results && results.length > 0) {
-      mappedResults = results.map(result => ({
-        ...result,
-        title: result.item_title,
-        url: result.item_url,
-        image_url: result.item_image_url,
-        condition: result.item_condition,
-        item_price: result.base_price,
-        shipping_cost: result.shipping_fee,
-        // 既存のフィールドも保持
-        item_title: result.item_title,
-        item_url: result.item_url,
-        item_image_url: result.item_image_url,
-        item_condition: result.item_condition
-      }));
-    } 
-    // search_resultsテーブルにデータがない場合は空の配列を返す
-    // 古いresultフィールドからのデータ取得は無効化（モックデータ防止）
-    else {
-      console.log('search_resultsテーブルにデータがないため、空の結果を返します');
-      mappedResults = [];
+    
+    if (task.result && task.result.integrated_results && task.result.integrated_results.items) {
+      mappedResults = task.result.integrated_results.items;
     }
 
     // レスポンスデータを構築
@@ -96,9 +57,9 @@ export async function GET(
       results_count: mappedResults.length,
       // 統計情報を追加
       stats: mappedResults.length > 0 ? {
-        min_price: Math.min(...mappedResults.map(r => r.total_price)),
-        max_price: Math.max(...mappedResults.map(r => r.total_price)),
-        avg_price: mappedResults.reduce((sum, r) => sum + r.total_price, 0) / mappedResults.length,
+        min_price: Math.min(...mappedResults.filter(r => r.total_price).map(r => r.total_price)),
+        max_price: Math.max(...mappedResults.filter(r => r.total_price).map(r => r.total_price)),
+        avg_price: mappedResults.filter(r => r.total_price).reduce((sum, r) => sum + r.total_price, 0) / mappedResults.filter(r => r.total_price).length,
         platforms: [...new Set(mappedResults.map(r => r.platform))],
         platform_counts: mappedResults.reduce((acc, r) => {
           acc[r.platform] = (acc[r.platform] || 0) + 1;
@@ -161,21 +122,6 @@ export async function DELETE(
 
     if (action === 'delete') {
       // 完全削除の場合
-      // 関連する検索結果も削除
-      const { error: resultsDeleteError } = await supabase
-        .from('search_results')
-        .delete()
-        .eq('task_id', taskId);
-
-      if (resultsDeleteError) {
-        console.error('Error deleting search results:', resultsDeleteError);
-        return NextResponse.json(
-          { error: '検索結果の削除に失敗しました' },
-          { status: 500 }
-        );
-      }
-
-      // タスクを削除
       const { error: taskDeleteError } = await supabase
         .from('search_tasks')
         .delete()
@@ -194,8 +140,7 @@ export async function DELETE(
         message: 'タスクが削除されました'
       });
     } else {
-      // キャンセルの場合（既存の処理）
-      // キャンセル可能なステータスかチェック
+      // キャンセルの場合
       if (!task || ['completed', 'failed', 'cancelled'].includes(task.status)) {
         return NextResponse.json(
           { error: 'このタスクはキャンセルできません' },
