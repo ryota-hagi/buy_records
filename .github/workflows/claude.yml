@@ -5,10 +5,20 @@ on:
   issues:
     types: [opened, edited]
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   claude:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropic/claude-code-action@v1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v0.0.7
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
