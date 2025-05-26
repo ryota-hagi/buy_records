@@ -222,3 +222,14 @@ yahoo_shopping_test_results_*.json
 
 # Memory bank (optional - remove this line if you want to include memory bank)
 memory-bank/
+
+# Screenshots
+screenshots/
+
+# Debug files
+mercari_debug.html
+mercari_debug.png
+dev.log
+
+# Test outputs
+mercari_test_output.txt
