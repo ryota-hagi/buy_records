@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { aiProductFilter, FilterConfig } from '../utils/ai_product_filter';
 
 // 検索結果の型定義
 interface SearchResult {
@@ -54,14 +55,19 @@ interface UnifiedSearchResponse {
  */
 export class UnifiedJanSearchEngineFinal {
   private readonly baseUrl: string;
+  private readonly useAiFilter: boolean;
 
-  constructor() {
+  constructor(filterConfig?: FilterConfig) {
     // 本番環境とローカル環境の判定
     this.baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://buy-records.vercel.app'
       : 'http://localhost:3000';
     
+    // AI filtering is enabled by default
+    this.useAiFilter = process.env.ENABLE_AI_FILTERING !== 'false';
+    
     console.log(`[UNIFIED_FINAL] Using base URL: ${this.baseUrl}`);
+    console.log(`[UNIFIED_FINAL] AI filtering: ${this.useAiFilter ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -94,10 +100,25 @@ export class UnifiedJanSearchEngineFinal {
       
       console.log(`[UNIFIED_FINAL] Platform results - Yahoo: ${yahooResults.length}, Mercari: ${mercariResults.length}, eBay: ${ebayResults.length}`);
 
-      // Step 3: 結果統合・重複除去・価格順ソート
+      // Step 3: 結果統合・重複除去
       const allResults = [...yahooResults, ...mercariResults, ...ebayResults];
       const deduplicatedResults = this.removeDuplicates(allResults);
-      const sortedResults = deduplicatedResults.sort((a, b) => a.total_price - b.total_price);
+      
+      // Step 4: AI-powered relevance filtering
+      let filteredResults = deduplicatedResults;
+      if (this.useAiFilter) {
+        try {
+          console.log(`[UNIFIED_FINAL] Applying AI filtering for product: ${productName}`);
+          filteredResults = await aiProductFilter.filterProducts(productName, deduplicatedResults);
+          console.log(`[UNIFIED_FINAL] AI filtering: ${deduplicatedResults.length} → ${filteredResults.length} results`);
+        } catch (error) {
+          console.error('[UNIFIED_FINAL] AI filtering failed, using unfiltered results:', error);
+          filteredResults = deduplicatedResults;
+        }
+      }
+      
+      // Step 5: 価格順ソート・最終件数制限
+      const sortedResults = filteredResults.sort((a, b) => a.total_price - b.total_price);
       const finalResults = sortedResults.slice(0, 20);
 
       const executionTime = Date.now() - startTime;
@@ -122,8 +143,10 @@ export class UnifiedJanSearchEngineFinal {
           summary: {
             total_found: allResults.length,
             after_deduplication: deduplicatedResults.length,
+            after_ai_filtering: filteredResults.length,
             final_count: finalResults.length,
-            execution_time_ms: executionTime
+            execution_time_ms: executionTime,
+            ai_filtering_enabled: this.useAiFilter
           }
         },
         platform_results: {
@@ -134,8 +157,10 @@ export class UnifiedJanSearchEngineFinal {
         summary: {
           total_found: allResults.length,
           after_deduplication: deduplicatedResults.length,
+          after_ai_filtering: filteredResults.length,
           final_count: finalResults.length,
-          execution_time_ms: executionTime
+          execution_time_ms: executionTime,
+          ai_filtering_enabled: this.useAiFilter
         }
       };
 

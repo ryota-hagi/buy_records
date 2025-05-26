@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { aiProductFilter } from '../../../utils/ai_product_filter';
 
 interface SearchResult {
   platform: string;
@@ -104,12 +105,27 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
 
   await Promise.allSettled(searchPromises);
 
+  // AI-powered relevance filtering (if enabled)
+  let filteredResults = results;
+  const useAiFilter = process.env.ENABLE_AI_FILTERING !== 'false';
+  
+  if (useAiFilter && searchQuery) {
+    try {
+      console.log(`[SEARCH_ALL] Applying AI filtering for query: ${searchQuery}`);
+      filteredResults = await aiProductFilter.filterProducts(searchQuery, results);
+      console.log(`[SEARCH_ALL] AI filtering: ${results.length} → ${filteredResults.length} results`);
+    } catch (error) {
+      console.error('[SEARCH_ALL] AI filtering failed, using unfiltered results:', error);
+      filteredResults = results;
+    }
+  }
+
   // 結果を価格順でソート
-  results.sort((a, b) => (a.total_price || a.price || 0) - (b.total_price || b.price || 0));
+  filteredResults.sort((a, b) => (a.total_price || a.price || 0) - (b.total_price || b.price || 0));
 
   // プラットフォーム別の結果を集計
   const platformResults: { [key: string]: SearchResult[] } = {};
-  for (const result of results) {
+  for (const result of filteredResults) {
     if (!platformResults[result.platform]) {
       platformResults[result.platform] = [];
     }
@@ -125,8 +141,8 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   return {
     success: true,
     query: searchQuery,
-    total_results: results.length,
-    results: results.slice(0, limit), // 制限数まで
+    total_results: filteredResults.length,
+    results: filteredResults.slice(0, limit), // 制限数まで
     platforms: platformResults, // プラットフォーム別結果
     platforms_searched: platforms.length,
     platform_metadata: platformMetadata, // 各プラットフォームのメタデータ
@@ -134,6 +150,11 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
       total_estimated_cost: totalEstimatedCost,
       currency: 'USD',
       details: platformMetadata.mercari?.metadata?.cost_tracking || null
+    },
+    filtering_summary: {
+      original_count: results.length,
+      after_ai_filtering: filteredResults.length,
+      ai_filtering_enabled: useAiFilter
     },
     errors: errors.length > 0 ? errors : undefined,
     timestamp: new Date().toISOString()
