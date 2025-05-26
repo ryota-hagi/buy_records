@@ -1,0 +1,43 @@
+FROM mcr.microsoft.com/playwright/python:v1.40.0-focal
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-jpn \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Copy requirements
+COPY requirements-visual.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-visual.txt
+
+# Install playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Copy application code
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Create directory for screenshots
+RUN mkdir -p /app/screenshots
+
+# Default command
+CMD ["python", "-m", "src.visual_scraper.server"]

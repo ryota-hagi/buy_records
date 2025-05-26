@@ -1,0 +1,34 @@
+# Core Web Automation
+playwright>=1.40.0
+selenium>=4.15.0
+undetected-chromedriver>=3.5.0
+
+# Computer Vision & AI
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+pillow>=10.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.35.0
+
+# AI/ML APIs
+openai>=1.0.0
+google-cloud-vision>=3.4.0
+anthropic>=0.7.0
+
+# Image Processing
+scikit-image>=0.22.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+aiohttp>=3.9.0
+
+# Database (for integration with existing project)
+psycopg2-binary>=2.9.0
+supabase>=2.0.0
+
+# Additional dependencies for OCR
+opencv-contrib-python>=4.8.0

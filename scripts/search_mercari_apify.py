@@ -48,8 +48,8 @@ def search_mercari_apify(keyword, limit=20):
         print(f"Apify Run ID: {run_id}", file=sys.stderr)
         
         # 実行完了まで待機
-        max_wait_time = 120  # 2分
-        wait_interval = 5    # 5秒間隔
+        max_wait_time = 300  # 5分
+        wait_interval = 10   # 10秒間隔
         elapsed_time = 0
         
         while elapsed_time < max_wait_time:
@@ -139,7 +139,7 @@ def search_mercari_fallback(keyword, limit=20):
         
         print(f"Mercari検索URL: {search_url}", file=sys.stderr)
         
-        response = requests.get(search_url, headers=headers, timeout=30)
+        response = requests.get(search_url, headers=headers, timeout=300)
         response.raise_for_status()
         
         print(f"Mercari検索レスポンス取得成功 (ステータス: {response.status_code})", file=sys.stderr)
@@ -173,7 +173,10 @@ def main():
             print("Apify API失敗、フォールバックを実行", file=sys.stderr)
             results = search_mercari_fallback(keyword, limit)
         
-        print(json.dumps(results, ensure_ascii=False))
+        # JSON_STARTとJSON_ENDマーカーで囲んで出力
+        print("JSON_START")
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+        print("JSON_END")
         
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)

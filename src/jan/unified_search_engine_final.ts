@@ -59,7 +59,7 @@ export class UnifiedJanSearchEngineFinal {
     // 本番環境とローカル環境の判定
     this.baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://buy-records.vercel.app'
-      : 'http://localhost:3005';
+      : 'http://localhost:3000';
     
     console.log(`[UNIFIED_FINAL] Using base URL: ${this.baseUrl}`);
   }

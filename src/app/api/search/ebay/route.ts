@@ -7,20 +7,31 @@ async function searchEbayBrowseApi(searchQuery: string, limit: number = 20): Pro
     console.log(`eBay Browse API検索開始: ${searchQuery}`);
     
     const pythonScript = path.join(process.cwd(), 'scripts', 'search_ebay_browse_api.py');
-    const pythonProcess = spawn('python', [pythonScript, searchQuery, limit.toString()]);
+    const pythonProcess = spawn('python3', [pythonScript, searchQuery, limit.toString()], {
+      env: { ...process.env },
+      timeout: 60000 // 60秒のタイムアウト
+    });
     
     let output = '';
     let errorOutput = '';
     
     pythonProcess.stdout.on('data', (data) => {
-      output += data.toString();
+      const chunk = data.toString();
+      output += chunk;
+      console.log('eBay stdout chunk:', chunk.substring(0, 100));
     });
     
     pythonProcess.stderr.on('data', (data) => {
-      errorOutput += data.toString();
+      const chunk = data.toString();
+      errorOutput += chunk;
+      console.log('eBay stderr chunk:', chunk);
     });
     
     pythonProcess.on('close', (code) => {
+      console.log(`eBay pythonProcess closed with code: ${code}`);
+      console.log(`eBay total output length: ${output.length}`);
+      console.log(`eBay total error length: ${errorOutput.length}`);
+      
       if (code === 0) {
         try {
           // JSON_STARTとJSON_ENDマーカーを探してJSONを抽出

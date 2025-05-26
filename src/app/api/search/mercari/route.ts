@@ -6,8 +6,37 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
   return new Promise((resolve, reject) => {
     console.log(`メルカリSelenium検索開始: ${searchQuery}`);
     
-    const pythonScript = path.join(process.cwd(), 'scripts', 'search_mercari_selenium_standalone.py');
-    const pythonProcess = spawn('python', [pythonScript, searchQuery, limit.toString()]);
+    // DOM解析を優先的に使用（確実性重視）
+    const domScript = path.join(process.cwd(), 'scripts', 'search_mercari_dom.py');
+    const optimizedScript = path.join(process.cwd(), 'scripts', 'search_mercari_visual_optimized.py');
+    const visualScript = path.join(process.cwd(), 'scripts', 'search_mercari_visual_integrated.py');
+    const fallbackScript = path.join(process.cwd(), 'scripts', 'search_mercari_final.py');
+    
+    // 優先順位: DOM解析 > 最適化版 > 通常版 > フォールバック
+    let pythonScript = domScript;
+    
+    const fs = require('fs');
+    if (!fs.existsSync(domScript)) {
+      console.log('DOM解析が見つかりません。視覚スクレイピングを使用します。');
+      pythonScript = optimizedScript;
+      
+      if (!fs.existsSync(optimizedScript)) {
+        console.log('最適化版が見つかりません。通常の視覚スクレイピングを使用します。');
+        pythonScript = visualScript;
+        
+        if (!fs.existsSync(visualScript)) {
+          console.log('視覚スクレイピングスクリプトが見つかりません。フォールバックを使用します。');
+          pythonScript = fallbackScript;
+        }
+      }
+    } else {
+      console.log('DOM解析（確実性重視）を使用します。');
+    }
+    // タイムアウトを延長し、環境変数を設定
+    const pythonProcess = spawn('python3', [pythonScript, searchQuery, limit.toString()], {
+      env: { ...process.env },
+      timeout: 60000 // 60秒のタイムアウト
+    });
     
     let output = '';
     let errorOutput = '';
@@ -24,35 +53,50 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
       if (code === 0) {
         try {
           // JSON_STARTとJSON_ENDマーカーを探してJSONを抽出
-          const jsonStartIndex = output.indexOf('JSON_START');
-          const jsonEndIndex = output.indexOf('JSON_END');
+          // stdoutとstderrの両方をチェック
+          let jsonStartIndex = output.indexOf('JSON_START');
+          let jsonEndIndex = output.indexOf('JSON_END');
+          let jsonSource = output;
+          
+          if (jsonStartIndex === -1 || jsonEndIndex === -1) {
+            // stdoutに見つからない場合はstderrもチェック
+            jsonStartIndex = errorOutput.indexOf('JSON_START');
+            jsonEndIndex = errorOutput.indexOf('JSON_END');
+            jsonSource = errorOutput;
+          }
           
           if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
-            const jsonStr = output.substring(jsonStartIndex + 'JSON_START'.length, jsonEndIndex).trim();
-            const results = JSON.parse(jsonStr);
-            console.log(`メルカリ確実検索成功: ${results.length}件取得`);
-            resolve(results);
+            const jsonStr = jsonSource.substring(jsonStartIndex + 'JSON_START'.length, jsonEndIndex).trim();
+            const parsed = JSON.parse(jsonStr);
+            console.log(`メルカリ確実検索成功: ${parsed.results?.length || 0}件取得`);
+            
+            // メタデータを含めて返す
+            resolve({
+              results: parsed.results || [],
+              metadata: parsed.metadata || null,
+              method: parsed.method || 'unknown'
+            });
           } else {
             console.error('メルカリ確実検索: JSONマーカーが見つかりません');
             console.error('出力:', output);
             console.error('エラー出力:', errorOutput);
-            resolve([]);
+            resolve({ results: [], metadata: null, method: 'error' });
           }
         } catch (parseError) {
           console.error('メルカリ確実検索結果解析エラー:', parseError);
           console.error('出力:', output);
           console.error('エラー出力:', errorOutput);
-          resolve([]);
+          resolve({ results: [], metadata: null, method: 'error' });
         }
       } else {
         console.error(`メルカリ確実検索エラー (code ${code}):`, errorOutput);
-        resolve([]);
+        resolve({ results: [], metadata: null, method: 'error' });
       }
     });
     
     pythonProcess.on('error', (error) => {
       console.error('メルカリ確実検索プロセスエラー:', error);
-      resolve([]);
+      resolve({ results: [], metadata: null, method: 'error' });
     });
   });
 }
@@ -74,7 +118,10 @@ async function handleMercariSearch(productName: string | null, janCode: string |
 
   try {
     // 確実検索で検索実行
-    const scrapingResults = await searchMercariReliable(searchQuery, limit);
+    const scrapingResponse = await searchMercariReliable(searchQuery, limit);
+    const scrapingResults = scrapingResponse.results || [];
+    const metadata = scrapingResponse.metadata || null;
+    const method = scrapingResponse.method || 'unknown';
     
     if (scrapingResults && scrapingResults.length > 0) {
       // レスポンス形式を統一
@@ -108,7 +155,9 @@ async function handleMercariSearch(productName: string | null, janCode: string |
         total_results: formattedResults.length,
         results: formattedResults,
         timestamp: new Date().toISOString(),
-        data_source: 'web_scraping'
+        data_source: method === 'visual_ai_optimized' ? 'visual_ai_gpt4o_mini' : 'web_scraping',
+        metadata: metadata,
+        scraping_method: method
       };
     } else {
       console.log('メルカリ検索結果が空です');
@@ -120,7 +169,9 @@ async function handleMercariSearch(productName: string | null, janCode: string |
         results: [],
         timestamp: new Date().toISOString(),
         data_source: 'web_scraping_empty',
-        warning: 'メルカリから検索結果を取得できませんでした'
+        warning: 'メルカリから検索結果を取得できませんでした',
+        metadata: metadata,
+        scraping_method: method
       };
     }
 
@@ -137,7 +188,9 @@ async function handleMercariSearch(productName: string | null, janCode: string |
       timestamp: new Date().toISOString(),
       data_source: 'scraping_error',
       warning: 'メルカリ検索中にエラーが発生しました',
-      error: error instanceof Error ? error.message : '不明なエラー'
+      error: error instanceof Error ? error.message : '不明なエラー',
+      metadata: null,
+      scraping_method: 'error'
     };
   }
 }

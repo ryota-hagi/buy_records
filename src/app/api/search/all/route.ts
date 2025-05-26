@@ -42,12 +42,15 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
 
   const results: SearchResult[] = [];
   const errors: string[] = [];
+  const platformMetadata: Record<string, any> = {};
 
   // 並行検索実行
   const searchPromises = platforms.map(async (platform) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      // Mercariの視覚スクレイピングは時間がかかるため、タイムアウトを延長
+      const timeout = platform.name === 'mercari' ? 45000 : 15000;
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       // 正しいパラメータ名を使用
       const params = new URLSearchParams();
@@ -75,6 +78,16 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
         if (data.success && data.results) {
           results.push(...data.results);
           console.log(`${platform.name}: ${data.results.length}件取得`);
+          
+          // メタデータを保存
+          if (data.metadata || data.scraping_method) {
+            platformMetadata[platform.name] = {
+              metadata: data.metadata,
+              scraping_method: data.scraping_method,
+              data_source: data.data_source,
+              total_results: data.total_results
+            };
+          }
         } else {
           errors.push(`${platform.name}: ${data.error || 'Unknown error'}`);
           console.error(`${platform.name} APIエラー:`, data.error);
@@ -103,6 +116,12 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
     platformResults[result.platform].push(result);
   }
 
+  // 総コストを計算
+  let totalEstimatedCost = 0;
+  if (platformMetadata.mercari?.metadata?.cost_tracking) {
+    totalEstimatedCost += platformMetadata.mercari.metadata.cost_tracking.estimated_cost || 0;
+  }
+
   return {
     success: true,
     query: searchQuery,
@@ -110,6 +129,12 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
     results: results.slice(0, limit), // 制限数まで
     platforms: platformResults, // プラットフォーム別結果
     platforms_searched: platforms.length,
+    platform_metadata: platformMetadata, // 各プラットフォームのメタデータ
+    cost_summary: {
+      total_estimated_cost: totalEstimatedCost,
+      currency: 'USD',
+      details: platformMetadata.mercari?.metadata?.cost_tracking || null
+    },
     errors: errors.length > 0 ? errors : undefined,
     timestamp: new Date().toISOString()
   };

@@ -67,7 +67,7 @@ class MercariReliableClient:
             }
             
             # APIリクエスト実行
-            response = self.session.get(self.api_url, params=params, timeout=30)
+            response = self.session.get(self.api_url, params=params, timeout=300)
             
             if response.status_code == 200:
                 data = response.json()
@@ -120,7 +120,7 @@ class MercariReliableClient:
             
             # 検索ページにアクセス
             search_url = f"https://jp.mercari.com/search?keyword={quote(keyword)}"
-            response = self.session.get(search_url, timeout=30)
+            response = self.session.get(search_url, timeout=300)
             
             if response.status_code != 200:
                 print(f"検索ページアクセス失敗: {response.status_code}", file=sys.stderr)

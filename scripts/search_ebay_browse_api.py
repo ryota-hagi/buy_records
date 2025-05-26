@@ -16,8 +16,12 @@ class EbayBrowseClient:
     
     def __init__(self):
         self.base_url = "https://api.ebay.com"
+        # .envファイルを読み込む
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         self.app_id = os.getenv('EBAY_APP_ID', 'ariGaT-records-PRD-1a6ee1171-104bfaa4')
-        self.cert_id = os.getenv('EBAY_CERT_ID', '')
+        self.cert_id = os.getenv('EBAY_CERT_ID', 'PRD-a6ee117176f2-7ca7-4f11-aa34-b24d')
         self.exchange_rate = 142.73
         self.access_token = None
     

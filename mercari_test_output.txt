@@ -1,0 +1,91 @@
+JSON_START
+OpenAI Vision API (GPT-4o-mini) を使用します
+
+=== コストサマリー ===
+スクリーンショット: 1枚
+推定コスト: $0.0010
+実行時間: 24.66秒
+JSON_END
+検索URL: https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc
+要素待機タイムアウト: mer-item-thumbnail
+ページ 1 を処理中...
+スクリーンショット保存: ./screenshots/mercari_page_1_1748277311.png
+スクリーンショット最適化: 2200500 → 113768 bytes
+AI解析を開始します...
+AI解析結果: {'products': [{'title': 'Nintendo Switch 本体', 'price': 300, 'sold': False, 'x': 100, 'y': 200}, {'title': 'Nintendo Switch ケース', 'price': 300, 'sold': False, 'x': 100, 'y': 250}, {'title': 'Nintendo Switch コントローラー', 'price': 300, 'sold': False, 'x': 100, 'y': 300}, {'title': 'Nintendo Switch スタンド', 'price': 300, 'sold': False, 'x': 100, 'y': 350}, {'title': 'Nintendo Switch 充電器', 'price': 300, 'sold': False, 'x': 100, 'y': 400}, {'title': 'Nintendo Switch ゲームソフト', 'price': 300, 'sold': False, 'x': 100, 'y': 450}, {'title': 'Nintendo Switch スキンシール', 'price': 300, 'sold': False, 'x': 100, 'y': 500}, {'title': 'Nintendo Switch スピーカー', 'price': 300, 'sold': False, 'x': 100, 'y': 550}, {'title': 'Nintendo Switch ヘッドセット', 'price': 300, 'sold': False, 'x': 100, 'y': 600}, {'title': 'Nintendo Switch ストレージ', 'price': 300, 'sold': False, 'x': 100, 'y': 650}], 'has_next': True}
+次のページがありません
+合計 5 件の商品を取得しました
+{
+  "success": true,
+  "results": [
+    {
+      "id": "visual_1_0",
+      "title": "Nintendo Switch 本体",
+      "price": 300,
+      "url": "https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc",
+      "image_url": "",
+      "platform": "mercari",
+      "method": "visual_ai",
+      "page": 1,
+      "position": {}
+    },
+    {
+      "id": "visual_1_1",
+      "title": "Nintendo Switch ケース",
+      "price": 300,
+      "url": "https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc",
+      "image_url": "",
+      "platform": "mercari",
+      "method": "visual_ai",
+      "page": 1,
+      "position": {}
+    },
+    {
+      "id": "visual_1_2",
+      "title": "Nintendo Switch コントローラー",
+      "price": 300,
+      "url": "https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc",
+      "image_url": "",
+      "platform": "mercari",
+      "method": "visual_ai",
+      "page": 1,
+      "position": {}
+    },
+    {
+      "id": "visual_1_3",
+      "title": "Nintendo Switch スタンド",
+      "price": 300,
+      "url": "https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc",
+      "image_url": "",
+      "platform": "mercari",
+      "method": "visual_ai",
+      "page": 1,
+      "position": {}
+    },
+    {
+      "id": "visual_1_4",
+      "title": "Nintendo Switch 充電器",
+      "price": 300,
+      "url": "https://jp.mercari.com/search?keyword=Nintendo%20Switch&status=on_sale&sort=price&order=asc",
+      "image_url": "",
+      "platform": "mercari",
+      "method": "visual_ai",
+      "page": 1,
+      "position": {}
+    }
+  ],
+  "platform": "mercari",
+  "query": "Nintendo Switch",
+  "method": "visual_ai_optimized",
+  "metadata": {
+    "execution_time": 24.66090416908264,
+    "cost_tracking": {
+      "screenshots": 1,
+      "api_calls": 0,
+      "estimated_cost": 0.001
+    },
+    "model_used": "gpt-4o-mini",
+    "optimization": "low_resolution",
+    "context7_compatible": true
+  }
+}

@@ -7,13 +7,16 @@ FROM node:20-alpine
 WORKDIR /app
 
 # 必要なパッケージをインストール
-RUN apk add --no-cache libc6-compat curl
+RUN apk add --no-cache libc6-compat curl python3 py3-pip
 
 # package.jsonとpackage-lock.jsonをコピー
 COPY package*.json ./
 
 # 依存関係をインストール（開発用依存関係も含む）
 RUN npm ci
+
+# Pythonの依存関係をインストール
+RUN pip3 install --break-system-packages requests beautifulsoup4 google-cloud-translate
 
 # アプリケーションのソースコードをコピー
 COPY . .

@@ -12,6 +12,10 @@ import re
 from urllib.parse import quote
 from typing import List, Dict, Any
 import os
+from dotenv import load_dotenv
+
+# .envファイルを読み込む
+load_dotenv()
 
 class EbayWorkingClient:
     """実働するeBayクライアント"""
