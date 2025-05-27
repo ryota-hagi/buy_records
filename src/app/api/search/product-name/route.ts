@@ -13,7 +13,7 @@ interface SearchResult {
   location: string;
   currency: string;
   relevance_score?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // レーベンシュタイン距離を計算する関数
@@ -63,7 +63,7 @@ function calculateRelevanceScore(productName: string, itemTitle: string): number
   const titleWords = normalizedItemTitle.split(/\s+/);
   
   let matchedWords = 0;
-  let totalWords = productWords.length;
+  const totalWords = productWords.length;
   
   for (const word of productWords) {
     if (titleWords.some(titleWord => titleWord.includes(word) || word.includes(titleWord))) {
@@ -96,7 +96,7 @@ async function searchByProductName(productName: string, limit: number = 50) {
 
   const results: SearchResult[] = [];
   const errors: string[] = [];
-  const platformMetadata: Record<string, any> = {};
+  const platformMetadata: Record<string, unknown> = {};
 
   // 並行検索実行
   const searchPromises = platforms.map(async (platform) => {
