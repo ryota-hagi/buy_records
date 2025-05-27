@@ -57,7 +57,7 @@ export class RakumaAdapter {
   /**
    * 検索結果を統一フォーマットに変換
    */
-  transformResult(item: any): RakumaSearchResult {
+  transformResult(item: Record<string, any>): RakumaSearchResult {
     return {
       platform: this.platform,
       title: item.title || '',
