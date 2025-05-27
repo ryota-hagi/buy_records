@@ -13,11 +13,30 @@ permissions:
 jobs:
   claude:
     runs-on: ubuntu-latest
+    # 特定のラベルがある場合のみ実行
+    if: |
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'claude')) ||
+      (github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'claude'))
     steps:
+      - name: Check for Claude mention
+        id: check_mention
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            if [[ "${{ github.event.comment.body }}" == *"@claude"* ]]; then
+              echo "run_claude=true" >> $GITHUB_OUTPUT
+            else
+              echo "run_claude=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "run_claude=true" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Checkout repository
+        if: steps.check_mention.outputs.run_claude == 'true'
         uses: actions/checkout@v4
         
       - name: Run Claude Code Action
+        if: steps.check_mention.outputs.run_claude == 'true'
         uses: anthropics/claude-code-action@v0.0.7
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
