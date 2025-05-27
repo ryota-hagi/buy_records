@@ -37,7 +37,8 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   const platforms = [
     { name: 'yahoo_shopping', endpoint: '/api/search/yahoo' },
     { name: 'ebay', endpoint: '/api/search/ebay' },
-    { name: 'mercari', endpoint: '/api/search/mercari' }
+    { name: 'mercari', endpoint: '/api/search/mercari' },
+    { name: 'rakuma', endpoint: '/api/search/rakuma' }
   ];
 
   const results: SearchResult[] = [];
@@ -48,8 +49,8 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   const searchPromises = platforms.map(async (platform) => {
     try {
       const controller = new AbortController();
-      // Mercariの視覚スクレイピングは時間がかかるため、タイムアウトを延長
-      const timeout = platform.name === 'mercari' ? 45000 : 15000;
+      // MercariとRakumaのスクレイピングは時間がかかるため、タイムアウトを延長
+      const timeout = (platform.name === 'mercari' || platform.name === 'rakuma') ? 45000 : 15000;
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       // 正しいパラメータ名を使用
