@@ -6,37 +6,43 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
   return new Promise((resolve, reject) => {
     console.log(`メルカリSelenium検索開始: ${searchQuery}`);
     
-    // DOM解析を優先的に使用（確実性重視）
-    const domScript = path.join(process.cwd(), 'scripts', 'search_mercari_dom.py');
-    const optimizedScript = path.join(process.cwd(), 'scripts', 'search_mercari_visual_optimized.py');
-    const visualScript = path.join(process.cwd(), 'scripts', 'search_mercari_visual_integrated.py');
-    const fallbackScript = path.join(process.cwd(), 'scripts', 'search_mercari_final.py');
+    // ローカルプロキシスクリプトを最優先で使用（Docker環境でのSelenium問題を回避）
+    const localProxyScript = path.join(process.cwd(), 'scripts', 'search_mercari_local_proxy.py');
+    const seleniumStandaloneScript = path.join(process.cwd(), 'scripts', 'search_mercari_selenium_standalone.py');
+    const customActorScript = path.join(process.cwd(), 'scripts', 'search_mercari_custom_actor.py');
+    const apifyScript = path.join(process.cwd(), 'scripts', 'search_mercari_apify.py');
     
-    // 優先順位: DOM解析 > 最適化版 > 通常版 > フォールバック
-    let pythonScript = domScript;
+    // 優先順位: ローカルプロキシ > Seleniumスタンドアロン > カスタムActor > Apify
+    let pythonScript = localProxyScript;
     
     const fs = require('fs');
-    if (!fs.existsSync(domScript)) {
-      console.log('DOM解析が見つかりません。視覚スクレイピングを使用します。');
-      pythonScript = optimizedScript;
+    if (!fs.existsSync(localProxyScript)) {
+      console.log('ローカルプロキシスクリプトが見つかりません。Seleniumスタンドアロンを使用します。');
+      pythonScript = seleniumStandaloneScript;
       
-      if (!fs.existsSync(optimizedScript)) {
-        console.log('最適化版が見つかりません。通常の視覚スクレイピングを使用します。');
-        pythonScript = visualScript;
+      if (!fs.existsSync(seleniumStandaloneScript)) {
+        console.log('Seleniumスタンドアロンスクリプトが見つかりません。カスタムActorを使用します。');
+        pythonScript = customActorScript;
         
-        if (!fs.existsSync(visualScript)) {
-          console.log('視覚スクレイピングスクリプトが見つかりません。フォールバックを使用します。');
-          pythonScript = fallbackScript;
+        if (!fs.existsSync(customActorScript)) {
+          console.log('カスタムActorスクリプトが見つかりません。Apifyを使用します。');
+          pythonScript = apifyScript;
         }
       }
     } else {
-      console.log('DOM解析（確実性重視）を使用します。');
+      console.log('ローカルプロキシ（ローカルSeleniumサーバー経由）を使用します。');
     }
-    // タイムアウトを延長し、環境変数を設定
+    // Pythonプロセスを起動（spawnはtimeoutオプションを持たないため手動でタイムアウト処理）
     const pythonProcess = spawn('python3', [pythonScript, searchQuery, limit.toString()], {
-      env: { ...process.env },
-      timeout: 60000 // 60秒のタイムアウト
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
+    
+    // タイムアウト処理を手動で実装（180秒）
+    const timeout = setTimeout(() => {
+      pythonProcess.kill();
+      console.error('メルカリ検索タイムアウト（180秒）');
+      resolve({ results: [], metadata: null, method: 'timeout' });
+    }, 180000);
     
     let output = '';
     let errorOutput = '';
@@ -50,6 +56,7 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
     });
     
     pythonProcess.on('close', (code) => {
+      clearTimeout(timeout);
       if (code === 0) {
         try {
           // JSON_STARTとJSON_ENDマーカーを探してJSONを抽出
@@ -68,13 +75,15 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
           if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
             const jsonStr = jsonSource.substring(jsonStartIndex + 'JSON_START'.length, jsonEndIndex).trim();
             const parsed = JSON.parse(jsonStr);
-            console.log(`メルカリ確実検索成功: ${parsed.results?.length || 0}件取得`);
+            // スクリプトは直接配列を返す場合とオブジェクトで返す場合がある
+            const results = Array.isArray(parsed) ? parsed : (parsed.results || []);
+            console.log(`メルカリ確実検索成功: ${results.length}件取得`);
             
             // メタデータを含めて返す
             resolve({
-              results: parsed.results || [],
+              results: results,
               metadata: parsed.metadata || null,
-              method: parsed.method || 'unknown'
+              method: parsed.method || 'selenium_standalone'
             });
           } else {
             console.error('メルカリ確実検索: JSONマーカーが見つかりません');

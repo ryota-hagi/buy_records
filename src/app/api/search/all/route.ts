@@ -38,7 +38,7 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
     { name: 'yahoo_shopping', endpoint: '/api/search/yahoo' },
     { name: 'ebay', endpoint: '/api/search/ebay' },
     { name: 'mercari', endpoint: '/api/search/mercari' },
-    { name: 'rakuma', endpoint: '/api/search/rakuma' }
+    { name: 'paypay', endpoint: '/api/search/paypay' }
   ];
 
   const results: SearchResult[] = [];
@@ -49,8 +49,8 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   const searchPromises = platforms.map(async (platform) => {
     try {
       const controller = new AbortController();
-      // MercariとRakumaのスクレイピングは時間がかかるため、タイムアウトを延長
-      const timeout = (platform.name === 'mercari' || platform.name === 'rakuma') ? 45000 : 15000;
+      // Mercari、PayPayのスクレイピングは時間がかかるため、タイムアウトを延長
+      const timeout = (platform.name === 'mercari' || platform.name === 'paypay') ? 180000 : 15000;
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       // 正しいパラメータ名を使用
@@ -77,8 +77,30 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.results) {
-          results.push(...data.results);
-          console.log(`${platform.name}: ${data.results.length}件取得`);
+          // 各プラットフォームの結果を統一フォーマットに変換
+          const formattedResults = data.results.map((item: any) => ({
+            platform: item.platform || platform.name,
+            title: item.title || item.item_title || '',
+            url: item.url || item.item_url || '',
+            image_url: item.image_url || item.item_image_url || '',
+            price: item.price || 0,
+            shipping_fee: item.shipping_fee || item.shipping_cost || 0,
+            total_price: item.total_price || item.price || 0,
+            condition: item.condition || item.item_condition || '不明',
+            store_name: item.store_name || item.seller || item.seller_name || '不明',
+            location: item.location || '不明',
+            currency: item.currency || 'JPY',
+            // 元のフィールドも保持（互換性のため）
+            item_title: item.item_title || item.title || '',
+            item_url: item.item_url || item.url || '',
+            item_image_url: item.item_image_url || item.image_url || '',
+            base_price: item.base_price || item.price || 0,
+            item_condition: item.item_condition || item.condition || '不明',
+            seller_name: item.seller_name || item.seller || item.store_name || '不明'
+          }));
+          
+          results.push(...formattedResults);
+          console.log(`${platform.name}: ${formattedResults.length}件取得`);
           
           // メタデータを保存
           if (data.metadata || data.scraping_method) {

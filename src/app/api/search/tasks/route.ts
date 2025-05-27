@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { UnifiedJanSearchEngineFinal } from '../../../../jan/unified_search_engine_final';
 
 // Supabaseクライアント初期化
 const supabase = createClient(
@@ -30,41 +29,68 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const { jan_code } = body;
+    const { jan_code, product_name } = body;
 
-    // JANコードのバリデーション
-    if (!jan_code || typeof jan_code !== 'string') {
-      console.error('[TASK_CREATE] Invalid JAN code:', jan_code);
+    // パラメータのバリデーション
+    if (!jan_code && !product_name) {
+      console.error('[TASK_CREATE] No search parameters provided');
       return NextResponse.json({
         success: false,
-        error: 'JANコードが必要です'
+        error: 'JANコードまたは商品名が必要です'
       }, { status: 400 });
     }
 
-    const cleanJanCode = jan_code.trim().replace(/[^0-9]/g, '');
-    if (cleanJanCode.length !== 13 && cleanJanCode.length !== 8) {
-      console.error('[TASK_CREATE] Invalid JAN code length:', cleanJanCode.length);
-      return NextResponse.json({
-        success: false,
-        error: 'JANコードは8桁または13桁の数字である必要があります'
-      }, { status: 400 });
+    let cleanJanCode = '';
+    let cleanProductName = '';
+    let taskName = '';
+
+    if (jan_code) {
+      // JANコードのバリデーション
+      if (typeof jan_code !== 'string') {
+        console.error('[TASK_CREATE] Invalid JAN code type:', typeof jan_code);
+        return NextResponse.json({
+          success: false,
+          error: 'JANコードは文字列である必要があります'
+        }, { status: 400 });
+      }
+
+      cleanJanCode = jan_code.trim().replace(/[^0-9]/g, '');
+      if (cleanJanCode.length !== 13 && cleanJanCode.length !== 8) {
+        console.error('[TASK_CREATE] Invalid JAN code length:', cleanJanCode.length);
+        return NextResponse.json({
+          success: false,
+          error: 'JANコードは8桁または13桁の数字である必要があります'
+        }, { status: 400 });
+      }
+      
+      console.log('[TASK_CREATE] Creating task for JAN code:', cleanJanCode);
+      taskName = `商品検索 (JANコード: ${cleanJanCode})`;
+    } else if (product_name) {
+      // 商品名のバリデーション
+      if (typeof product_name !== 'string' || !product_name.trim()) {
+        console.error('[TASK_CREATE] Invalid product name:', product_name);
+        return NextResponse.json({
+          success: false,
+          error: '有効な商品名を入力してください'
+        }, { status: 400 });
+      }
+      
+      cleanProductName = product_name.trim();
+      console.log('[TASK_CREATE] Creating task for product name:', cleanProductName);
+      taskName = `商品検索 (商品名: ${cleanProductName})`;
     }
-
-    console.log('[TASK_CREATE] Creating task for JAN code:', cleanJanCode);
-
-    // デフォルトのタスク名
-    let taskName = `商品検索 (JANコード: ${cleanJanCode})`;
     
     // Supabaseにタスクを作成
+    const searchParams = cleanJanCode 
+      ? { jan_code: cleanJanCode, platforms: ['yahoo_shopping', 'mercari', 'ebay'] }
+      : { product_name: cleanProductName, platforms: ['yahoo_shopping', 'mercari', 'ebay'] };
+      
     const { data: task, error: insertError } = await supabase
       .from('search_tasks')
       .insert({
         name: taskName,
         status: 'pending',
-        search_params: {
-          jan_code: cleanJanCode,
-          platforms: ['yahoo_shopping', 'mercari', 'ebay']
-        },
+        search_params: searchParams,
         created_at: new Date().toISOString()
       })
       .select()
@@ -94,43 +120,68 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', task.id);
 
-        // 新しい統合検索エンジンを直接使用
-        console.log('[TASK_CREATE] Executing unified search engine');
+        // 統合検索APIを使用（4プラットフォーム対応）
+        console.log('[TASK_CREATE] Executing unified search via /api/search/all');
         
-        const searchEngine = new UnifiedJanSearchEngineFinal();
-        const searchResults = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://buy-records.vercel.app' 
+          : `http://localhost:${process.env.PORT || 3000}`;
+        
+        const searchParams = new URLSearchParams();
+        if (cleanJanCode) {
+          searchParams.append('jan_code', cleanJanCode);
+        } else {
+          searchParams.append('product_name', cleanProductName);
+        }
+        searchParams.append('limit', '80'); // 各プラットフォーム20件ずつ
+        
+        const searchResponse = await fetch(`${baseUrl}/api/search/all?${searchParams.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (!searchResponse.ok) {
+          throw new Error(`Search API failed: ${searchResponse.status}`);
+        }
+        
+        const searchData = await searchResponse.json();
         
         console.log('[TASK_CREATE] Unified search completed:', {
-          success: searchResults.success,
-          totalResults: searchResults.total_results,
-          finalCount: searchResults.final_results.length,
-          platformCounts: {
-            yahoo: searchResults.platform_results.yahoo_shopping.length,
-            mercari: searchResults.platform_results.mercari.length,
-            ebay: searchResults.platform_results.ebay.length
-          }
+          success: searchData.success,
+          totalResults: searchData.total_results,
+          platformCounts: Object.entries(searchData.platforms || {}).reduce((acc, [platform, items]) => {
+            acc[platform] = (items as any[]).length;
+            return acc;
+          }, {} as Record<string, number>)
         });
 
         // 結果データを構築（要件通りの形式）
         const resultData = {
           integrated_results: {
-            success: searchResults.success,
-            product_name: searchResults.product_name,
-            total_results: searchResults.total_results,
-            items: searchResults.final_results, // 最終20件（安い順ソート済み）
-            platform_results: searchResults.platform_results, // 各プラットフォーム別結果
-            summary: searchResults.summary
+            success: searchData.success,
+            product_name: searchData.query || taskName,
+            total_results: searchData.total_results,
+            items: searchData.results || [], // 統合された結果（価格順）
+            platform_results: searchData.platforms || {}, // 各プラットフォーム別結果
+            summary: {
+              total_found: searchData.total_results,
+              after_deduplication: searchData.total_results,
+              final_count: searchData.results ? searchData.results.length : 0,
+              execution_time_ms: 0
+            }
           }
         };
 
         // 商品名を更新（検索結果から取得）
-        if (searchResults.success && searchResults.product_name && 
-            searchResults.product_name !== taskName && 
-            !searchResults.product_name.includes('JANコード:')) {
+        if (searchData.success && searchData.query && 
+            searchData.query !== taskName && 
+            !searchData.query.includes('JANコード:')) {
           await supabase
             .from('search_tasks')
             .update({ 
-              name: searchResults.product_name,
+              name: searchData.query,
               updated_at: new Date().toISOString()
             })
             .eq('id', task.id);
