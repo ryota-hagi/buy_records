@@ -273,6 +273,143 @@ git branch -d feature/[機能名]
 2. **PMが方針決定** → エージェントが実行
 3. **PMが統合** → エージェントが検証
 
+## 🐳 Docker環境管理
+
+### Docker-リポジトリ同期チェックリスト
+
+#### 定期確認項目（CI/CD実行時・週次）
+- [ ] package.jsonの変更時 → Dockerfileの再ビルド必要性確認
+- [ ] requirements.txtの変更時 → Dockerfile.visual の更新確認
+- [ ] 新規ディレクトリ作成時 → Docker内のCOPYコマンド確認
+- [ ] .env.exampleの変更時 → .env.dockerの同期確認
+
+#### 自動同期スクリプト
+```bash
+# Docker環境同期チェック（scripts/check_docker_sync.sh）
+#!/bin/bash
+
+echo "🐳 Docker環境同期チェック開始..."
+
+# 1. package.jsonの更新確認
+if git diff --name-only HEAD~1 | grep -q "package.json"; then
+    echo "⚠️  package.jsonが更新されています。Dockerイメージの再ビルドが必要です。"
+    echo "実行: docker-compose build --no-cache app app-dev"
+fi
+
+# 2. Python依存関係の確認
+if git diff --name-only HEAD~1 | grep -E "requirements.*\.txt"; then
+    echo "⚠️  Python依存関係が更新されています。"
+    echo "実行: docker-compose build --no-cache visual"
+fi
+
+# 3. 環境変数の同期確認
+diff .env.example .env.docker > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  .env.exampleと.env.dockerに差異があります。"
+    echo "環境変数の同期を確認してください。"
+fi
+
+# 4. ボリュームマウントの確認
+echo "📁 現在のボリュームマウント設定:"
+grep -A5 "volumes:" docker-compose*.yml
+
+echo "✅ チェック完了"
+```
+
+### Docker更新手順
+
+#### 1. 依存関係更新時
+```bash
+# Node.js依存関係更新
+npm install [package]
+docker-compose build --no-cache app app-dev
+
+# Python依存関係更新
+echo "[package]" >> requirements-visual.txt
+docker-compose build --no-cache visual
+```
+
+#### 2. 新規ファイル・ディレクトリ追加時
+```bash
+# Dockerfileを確認し、必要に応じてCOPYコマンドを追加
+# 例: 新規scriptsディレクトリ追加時
+# Dockerfile内に追加: COPY scripts/ ./scripts/
+```
+
+#### 3. 環境変数追加時
+```bash
+# 1. .env.exampleに追加
+echo "NEW_VAR=example_value" >> .env.example
+
+# 2. .env.dockerにも追加
+echo "NEW_VAR=docker_value" >> .env.docker
+
+# 3. docker-compose.ymlで必要に応じて参照
+```
+
+### Docker同期状態の可視化
+
+```bash
+# 同期状態レポート生成（月次実行推奨）
+python3 scripts/generate_docker_sync_report.py
+
+# 出力例:
+# 📊 Docker同期レポート (2025-05-28)
+# ✅ package.json: 同期済み
+# ✅ requirements.txt: 同期済み
+# ⚠️  環境変数: 3個の差異
+# ✅ ディレクトリ構造: 一致
+```
+
+### トラブルシューティング
+
+#### よくある同期問題
+
+1. **node_modulesの不整合**
+   ```bash
+   # コンテナ内のnode_modulesを再構築
+   docker-compose run --rm app npm ci
+   ```
+
+2. **Pythonパッケージの不整合**
+   ```bash
+   # requirements.txtを再生成
+   docker-compose run --rm visual pip freeze > requirements-visual.txt
+   ```
+
+3. **ビルドキャッシュの問題**
+   ```bash
+   # 完全なクリーンビルド
+   docker-compose down
+   docker system prune -af
+   docker-compose build --no-cache
+   ```
+
+### CI/CD統合
+
+```yaml
+# .github/workflows/docker-sync.yml
+name: Docker Sync Check
+
+on:
+  push:
+    paths:
+      - 'package*.json'
+      - 'requirements*.txt'
+      - 'Dockerfile*'
+      - '.env.example'
+
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check Docker Sync
+        run: |
+          chmod +x scripts/check_docker_sync.sh
+          ./scripts/check_docker_sync.sh
+```
+
 ## 🔗 関連ドキュメント
 
 - [開発環境セットアップ](./docs/development_environment_setup.md)
