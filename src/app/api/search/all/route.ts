@@ -35,9 +35,13 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   console.log(`統合検索開始: ${searchQuery}`);
 
   const platforms = [
+    { name: 'rakuten', endpoint: '/api/search/rakuten' },
     { name: 'yahoo_shopping', endpoint: '/api/search/yahoo' },
-    { name: 'ebay', endpoint: '/api/search/ebay' },
-    { name: 'mercari', endpoint: '/api/search/mercari' }
+    { name: 'mercari', endpoint: '/api/search/mercari' },
+    { name: 'paypay', endpoint: '/api/search/paypay' },
+    { name: 'rakuma', endpoint: '/api/search/rakuma' },
+    { name: 'yodobashi', endpoint: '/api/search/yodobashi' },
+    { name: 'ebay', endpoint: '/api/search/ebay' }
   ];
 
   const results: SearchResult[] = [];
@@ -48,8 +52,9 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
   const searchPromises = platforms.map(async (platform) => {
     try {
       const controller = new AbortController();
-      // Mercariの視覚スクレイピングは時間がかかるため、タイムアウトを延長
-      const timeout = platform.name === 'mercari' ? 45000 : 15000;
+      // Selenium/スクレイピングベースのプラットフォームは時間がかかるため、タイムアウトを延長
+      const longTimeoutPlatforms = ['mercari', 'paypay', 'rakuma', 'yodobashi'];
+      const timeout = longTimeoutPlatforms.includes(platform.name) ? 180000 : 30000; // 180秒または30秒
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       // 正しいパラメータ名を使用

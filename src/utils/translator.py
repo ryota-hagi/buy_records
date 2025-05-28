@@ -497,8 +497,15 @@ class GoogleTranslator:
             return product_name
 
 
-# グローバルインスタンス
-translator = GoogleTranslator()
+# OpenAI翻訳を優先的に使用
+try:
+    from .openai_translator import translator as openai_translator
+    translator = openai_translator
+    logger.info("OpenAI翻訳を使用します")
+except ImportError:
+    # OpenAI翻訳が利用できない場合はGoogle翻訳を使用
+    translator = GoogleTranslator()
+    logger.info("Google Cloud翻訳を使用します")
 
 def translate_for_platform(product_name: str, platform: str) -> str:
     """
