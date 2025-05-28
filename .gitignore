@@ -233,3 +233,6 @@ dev.log
 
 # Test outputs
 mercari_test_output.txt
+# Temporary debug files
+rakuma_*.html
+rakuma_*.png
