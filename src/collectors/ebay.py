@@ -22,8 +22,8 @@ class EbayClient:
         self.app_id = get_config("EBAY_APP_ID")
         self.cert_id = get_config("EBAY_CERT_ID")
         self.client_secret = get_config("EBAY_CLIENT_SECRET")
-        self.user_token = get_config("EBAY_USER_TOKEN")
-        self.token_expiry_str = get_config("EBAY_TOKEN_EXPIRY")
+        self.user_token = get_config("EBAY_USER_TOKEN", required=False)
+        self.token_expiry_str = get_config("EBAY_TOKEN_EXPIRY", required=False)
         self.environment = get_config("EBAY_ENVIRONMENT", "PRODUCTION")
         
         # 環境に応じたエンドポイント設定
@@ -44,23 +44,33 @@ class EbayClient:
                 print(f"Warning: Invalid token expiry format: {self.token_expiry_str}")
         
         self.access_token = None
+        self.access_token_expiry = None
         self.delay = float(get_config("REQUEST_DELAY", "1.0"))
+    
+    def _check_token_validity(self) -> bool:
+        """アクセストークンの有効性をチェック"""
+        if not self.access_token or not self.access_token_expiry:
+            return False
+        return datetime.now() < self.access_token_expiry - timedelta(minutes=5)
     
     def _get_access_token(self) -> str:
         """
-        User Tokenまたは新しいアクセストークンを取得します。
+        OAuth2.0アクセストークンを取得または更新します。
         
         Returns:
-            str: アクセストークン
+            str: 有効なアクセストークン
         """
-        # User Tokenが設定されている場合は常にそれを使用
-        if self.user_token:
-            print("Using User Token")
-            return self.user_token
-        
-        # User Tokenがない場合はClient Credentialsフローを使用
-        if self.access_token and self.token_expiry and datetime.now() < self.token_expiry:
+        # 既存の有効なアクセストークンがある場合はそれを使用
+        if self._check_token_validity():
             return self.access_token
+        
+        # User Tokenが設定されていて有効期限内の場合
+        if self.user_token and self.token_expiry:
+            if datetime.now() < self.token_expiry:
+                print("Using valid User Token")
+                return self.user_token
+            else:
+                print("User Token expired, getting new access token")
         
         print("Getting new access token using Client Credentials flow")
         
@@ -86,7 +96,7 @@ class EbayClient:
             self.access_token = token_data["access_token"]
             # トークン有効期限を設定（少し余裕を持たせる）
             expires_in = token_data["expires_in"] - 60  # 1分早めに期限切れとする
-            self.token_expiry = datetime.now() + timedelta(seconds=expires_in)
+            self.access_token_expiry = datetime.now() + timedelta(seconds=expires_in)
             
             print(f"Successfully obtained new access token, expires in {expires_in} seconds")
             return self.access_token
@@ -131,6 +141,7 @@ class EbayClient:
                 if response.status_code == 401:  # Unauthorized
                     print(f"Authentication error on attempt {attempt + 1}. Refreshing token...")
                     self.access_token = None  # トークンをリセット
+                    self.access_token_expiry = None
                     if attempt < max_retries:
                         time.sleep(2 ** attempt)  # 指数バックオフ
                         continue

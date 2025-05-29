@@ -25,14 +25,14 @@ export async function GET(request: NextRequest) {
 
     try {
       // ヨドバシで検索実行（リトライロジック付き）
-      let results = [];
+      let searchResult = null;
       let lastError = null;
       const maxRetries = 3;
 
       for (let i = 0; i < maxRetries; i++) {
         try {
-          results = await scraper.search(searchQuery);
-          if (results.length > 0) {
+          searchResult = await scraper.search(searchQuery, limit);
+          if (searchResult.success && searchResult.results.length > 0) {
             break; // 成功したらループを抜ける
           }
         } catch (error) {
@@ -44,22 +44,22 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (results.length === 0 && lastError) {
-        throw lastError;
+      if (!searchResult || (!searchResult.success && lastError)) {
+        throw lastError || new Error('検索に失敗しました');
       }
 
-      // 結果を制限数まで取得
-      const limitedResults = results.slice(0, limit);
+      // 結果を取得
+      const results = searchResult.results || [];
 
-      console.log(`ヨドバシ検索完了: ${limitedResults.length}件`);
+      console.log(`ヨドバシ検索完了: ${results.length}件`);
 
       return NextResponse.json({
         success: true,
         query: searchQuery,
-        results: limitedResults,
-        total_results: results.length,
+        results: results,
+        total_results: searchResult.metadata?.total_results || results.length,
         data_source: 'yodobashi_scraper',
-        scraping_method: 'beautifulsoup',
+        scraping_method: 'api',
         timestamp: new Date().toISOString()
       });
 

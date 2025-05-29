@@ -35,7 +35,7 @@ async function searchMercariReliable(searchQuery: string, limit: number = 20): P
     // タイムアウトを延長し、環境変数を設定
     const pythonProcess = spawn('python3', [pythonScript, searchQuery, limit.toString()], {
       env: { ...process.env },
-      timeout: 60000 // 60秒のタイムアウト
+      timeout: 180000 // 180秒(3分)のタイムアウト
     });
     
     let output = '';

@@ -52,6 +52,8 @@ export default function SearchPage() {
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+  const [platformResults, setPlatformResults] = useState<Record<string, SearchResult[]>>({});
 
   const handleSearch = async () => {
     if (!janCode.trim()) {
@@ -141,6 +143,16 @@ export default function SearchPage() {
             console.log('Task completed successfully');
             if (taskData.task.result?.integrated_results?.items) {
               setSearchResults(taskData.task.result.integrated_results.items);
+              
+              // プラットフォーム別の結果を整理
+              const platformData: Record<string, SearchResult[]> = {};
+              taskData.task.result.integrated_results.items.forEach((item: SearchResult) => {
+                if (!platformData[item.platform]) {
+                  platformData[item.platform] = [];
+                }
+                platformData[item.platform].push(item);
+              });
+              setPlatformResults(platformData);
             }
             setIsSearching(false);
             return;
@@ -223,8 +235,35 @@ export default function SearchPage() {
               検索結果 ({searchResults.length}件)
             </h2>
             
+            {/* プラットフォーム別フィルターボタン */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              <button
+                onClick={() => setSelectedPlatform('all')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  selectedPlatform === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                すべて ({searchResults.length})
+              </button>
+              {Object.entries(platformResults).map(([platform, items]) => (
+                <button
+                  key={platform}
+                  onClick={() => setSelectedPlatform(platform)}
+                  className={`px-4 py-2 rounded-md transition-colors ${
+                    selectedPlatform === platform
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  {platform} ({items.length})
+                </button>
+              ))}
+            </div>
+            
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {searchResults.map((result, index) => (
+              {(selectedPlatform === 'all' ? searchResults : platformResults[selectedPlatform] || []).map((result, index) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start gap-4">
                     {result.item_image_url && (

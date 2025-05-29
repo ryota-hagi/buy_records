@@ -213,7 +213,93 @@ print(result if result else '')
 
 
   /**
-   * Yahoo Shopping検索
+   * 商品名で統合検索を実行
+   */
+  async executeUnifiedProductSearch(productName: string): Promise<UnifiedSearchResponse> {
+    const startTime = Date.now();
+    console.log(`[UNIFIED_PRODUCT_SEARCH] Starting search for: ${productName}`);
+
+    try {
+      // 各プラットフォームで検索実行（並列）
+      const [yahooResults, mercariResults, ebayResults] = await Promise.allSettled([
+        this.searchYahooShoppingByName(productName, 20),
+        this.searchMercari(productName, 20),
+        this.searchEbayByName(productName, 20)
+      ]);
+
+      // 結果の集約
+      const allResults: SearchResult[] = [];
+      const platformResults = {
+        yahoo_shopping: [] as SearchResult[],
+        mercari: [] as SearchResult[],
+        ebay: [] as SearchResult[]
+      };
+
+      // Yahoo Shopping結果
+      if (yahooResults.status === 'fulfilled') {
+        platformResults.yahoo_shopping = yahooResults.value;
+        allResults.push(...yahooResults.value);
+      }
+
+      // メルカリ結果
+      if (mercariResults.status === 'fulfilled') {
+        platformResults.mercari = mercariResults.value;
+        allResults.push(...mercariResults.value);
+      }
+
+      // eBay結果
+      if (ebayResults.status === 'fulfilled') {
+        platformResults.ebay = ebayResults.value;
+        allResults.push(...ebayResults.value);
+      }
+
+      // 重複除去と価格順ソート
+      const deduplicatedResults = this.deduplicateResults(allResults);
+      const finalResults = deduplicatedResults.slice(0, 20);
+
+      const executionTime = Date.now() - startTime;
+
+      const response: UnifiedSearchResponse = {
+        success: true,
+        product_name: productName,
+        total_results: finalResults.length,
+        final_results: finalResults,
+        platform_results: platformResults,
+        summary: {
+          total_found: allResults.length,
+          after_deduplication: deduplicatedResults.length,
+          final_count: finalResults.length,
+          execution_time_ms: executionTime
+        }
+      };
+
+      console.log(`[UNIFIED_PRODUCT_SEARCH] Completed in ${executionTime}ms`);
+      return response;
+
+    } catch (error) {
+      console.error('[UNIFIED_PRODUCT_SEARCH] Error:', error);
+      return {
+        success: false,
+        product_name: productName,
+        total_results: 0,
+        final_results: [],
+        platform_results: {
+          yahoo_shopping: [],
+          mercari: [],
+          ebay: []
+        },
+        summary: {
+          total_found: 0,
+          after_deduplication: 0,
+          final_count: 0,
+          execution_time_ms: Date.now() - startTime
+        }
+      };
+    }
+  }
+
+  /**
+   * Yahoo Shopping検索（JANコード）
    */
   private async searchYahooShopping(janCode: string, limit: number): Promise<SearchResult[]> {
     try {

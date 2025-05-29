@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RakutenItem {
-  itemName: string;
-  itemPrice: number;
-  itemUrl: string;
-  mediumImageUrls: { imageUrl: string }[];
-  shopName: string;
-  reviewAverage: number;
-  reviewCount: number;
+  itemName?: string;
+  name?: string; // Alternative property
+  itemPrice?: number;
+  itemUrl?: string;
+  mediumImageUrls?: { imageUrl?: string }[] | string[];
+  shopName?: string;
+  reviewAverage?: number;
+  reviewCount?: number;
   itemCaption?: string;
-  availability: number;
-  postageFlag: number;
-  shopCode: string;
-  itemCode: string;
+  availability?: number;
+  postageFlag?: number;
+  shopCode?: string;
+  itemCode?: string;
 }
 
 interface RakutenSearchResult {
@@ -23,7 +24,7 @@ interface RakutenSearchResult {
   hits: number;
   carrier: number;
   pageCount: number;
-  Items: { Item: RakutenItem }[];
+  Items: RakutenItem[];
 }
 
 export async function GET(request: NextRequest) {
@@ -83,23 +84,23 @@ export async function GET(request: NextRequest) {
     const data: RakutenSearchResult = await response.json();
 
     // 結果を標準フォーマットに変換
-    const results = data.Items.map(({ Item }) => ({
+    const results = data.Items.map((item) => ({
       platform: 'rakuten',
-      title: Item.itemName,
-      price: Item.itemPrice,
-      url: Item.itemUrl,
-      image_url: Item.mediumImageUrls?.[0]?.imageUrl || '',
-      shipping_fee: Item.postageFlag === 0 ? 0 : null, // 送料無料フラグ
-      total_price: Item.itemPrice, // 送料が不明な場合は商品価格のみ
+      title: item.itemName || item.name || '商品名なし',
+      price: item.itemPrice || 0,
+      url: item.itemUrl || '',
+      image_url: item.mediumImageUrls?.[0]?.imageUrl || (Array.isArray(item.mediumImageUrls) && item.mediumImageUrls[0]) || '',
+      shipping_fee: item.postageFlag === 0 ? 0 : null, // 送料無料フラグ
+      total_price: item.itemPrice || 0, // 送料が不明な場合は商品価格のみ
       condition: '新品', // 楽天市場は基本的に新品
-      store_name: Item.shopName,
+      store_name: item.shopName || '店舗名なし',
       location: 'Japan',
       currency: 'JPY',
-      review_average: Item.reviewAverage,
-      review_count: Item.reviewCount,
-      description: Item.itemCaption,
-      item_code: `${Item.shopCode}_${Item.itemCode}`,
-      availability: Item.availability === 1
+      review_average: item.reviewAverage || 0,
+      review_count: item.reviewCount || 0,
+      description: item.itemCaption || '',
+      item_code: `${item.shopCode || 'unknown'}_${item.itemCode || 'unknown'}`,
+      availability: item.availability === 1
     }));
 
     console.log(`楽天検索完了: ${results.length}件`);

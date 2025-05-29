@@ -8,10 +8,14 @@ import os
 from typing import Dict, List, Any, Optional
 from supabase import create_client, Client
 from .config import get_config
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# グローバルクライアントインスタンス
+_supabase_client: Optional[Client] = None
 
 def get_supabase_client() -> Client:
     """
-    Supabaseクライアントを取得します。
+    Supabaseクライアントをシングルトンパターンで取得します。
     
     Returns:
         Client: Supabaseクライアントインスタンス
@@ -19,13 +23,57 @@ def get_supabase_client() -> Client:
     Raises:
         ValueError: Supabase接続情報が設定されていない場合
     """
-    supabase_url = get_config("SUPABASE_URL")
-    supabase_key = get_config("SUPABASE_SERVICE_KEY") or get_config("SUPABASE_ANON_KEY")
+    global _supabase_client
     
-    if not supabase_url or not supabase_key:
-        raise ValueError("Supabase接続情報が設定されていません。.envファイルを確認してください。")
+    if _supabase_client is None:
+        supabase_url = get_config("SUPABASE_URL")
+        supabase_key = get_config("SUPABASE_SERVICE_KEY") or get_config("SUPABASE_ANON_KEY")
+        
+        if not supabase_url or not supabase_key:
+            raise ValueError("Supabase接続情報が設定されていません。.envファイルを確認してください。")
+        
+        _supabase_client = create_client(
+            supabase_url, 
+            supabase_key,
+            options={
+                'schema': 'public',
+                'headers': {'x-my-custom-header': 'buy_records'},
+                'autoRefreshToken': True,
+                'persistSession': True,
+                'detectSessionInUrl': False
+            }
+        )
     
-    return create_client(supabase_url, supabase_key)
+    return _supabase_client
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10)
+)
+def execute_with_retry(func, *args, **kwargs):
+    """リトライ機能付きの実行関数"""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        # 接続エラーの場合、クライアントをリセット
+        global _supabase_client
+        _supabase_client = None
+        raise e
+
+def check_connection() -> bool:
+    """データベース接続の健全性をチェック"""
+    try:
+        client = get_supabase_client()
+        # 簡単なクエリを実行して接続を確認
+        result = client.table('search_tasks').select('id').limit(1).execute()
+        # 結果が返ってきたら成功
+        return hasattr(result, 'data')
+    except Exception as e:
+        print(f"Connection check failed: {str(e)}")
+        # 接続をリセット
+        global _supabase_client
+        _supabase_client = None
+        return False
 
 def insert_data(table_name: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """

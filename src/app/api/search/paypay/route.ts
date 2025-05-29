@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PayPaySeleniumScraper } from '@/collectors/paypay_selenium';
+import { spawn } from 'child_process';
+import path from 'path';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,44 +22,106 @@ export async function GET(request: NextRequest) {
 
     console.log(`PayPayフリマ検索開始: ${searchQuery}`);
 
-    // Seleniumサーバーの設定
-    const seleniumUrl = process.env.SELENIUM_HUB_URL || 'http://localhost:5001';
-    const scraper = new PayPaySeleniumScraper(seleniumUrl);
-
-    try {
-      // PayPayフリマで検索実行
-      const results = await scraper.search(searchQuery);
-
-      // 結果を制限数まで取得
-      const limitedResults = results.slice(0, limit);
-
-      console.log(`PayPayフリマ検索完了: ${limitedResults.length}件`);
-
-      return NextResponse.json({
-        success: true,
-        query: searchQuery,
-        results: limitedResults,
-        total_results: results.length,
-        data_source: 'paypay_selenium',
-        scraping_method: 'selenium',
-        timestamp: new Date().toISOString()
+    // Pythonスクリプトを使用してPayPayフリマ検索を実行
+    const pythonScript = path.join(process.cwd(), 'scripts', 'search', 'search_paypay_selenium.py');
+    
+    return new Promise((resolve, reject) => {
+      const pythonProcess = spawn('python3', [pythonScript, searchQuery, limit.toString()], {
+        env: { ...process.env },
+        timeout: 120000 // 120秒のタイムアウト
       });
-
-    } catch (scraperError) {
-      console.error('PayPayフリマスクレイピングエラー:', scraperError);
       
-      // エラーでも空の結果を返す（他のプラットフォームの検索を止めない）
-      return NextResponse.json({
-        success: false,
-        query: searchQuery,
-        results: [],
-        total_results: 0,
-        error: scraperError instanceof Error ? scraperError.message : 'スクレイピングエラー',
-        data_source: 'paypay_selenium',
-        scraping_method: 'selenium',
-        timestamp: new Date().toISOString()
+      let output = '';
+      let errorOutput = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
       });
-    }
+      
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code !== 0) {
+          console.error(`PayPayフリマ検索エラー: ${errorOutput}`);
+          resolve(NextResponse.json({
+            success: false,
+            error: 'PayPayフリマ検索中にエラーが発生しました',
+            details: errorOutput,
+            results: []
+          }, { status: 500 }));
+          return;
+        }
+        
+        try {
+          // Clean output by extracting only JSON part
+          const jsonMatch = output.match(/\[[\s\S]*\]/);
+          if (!jsonMatch) {
+            console.log('PayPayフリマ: No JSON found in output');
+            resolve(NextResponse.json({
+              success: true,
+              platform: 'paypay',
+              query: searchQuery,
+              results: [],
+              total_results: 0,
+              data_source: 'paypay_selenium',
+              scraping_method: 'selenium',
+              timestamp: new Date().toISOString()
+            }));
+            return;
+          }
+          
+          const results = JSON.parse(jsonMatch[0]);
+          console.log(`PayPayフリマ検索完了: ${results.length}件`);
+          
+          // Transform results to standard format
+          const standardResults = results.map((item: any) => ({
+            platform: 'paypay',
+            title: item.item_title || item.title || '',
+            price: item.price || 0,
+            url: item.item_url || item.url || '',
+            image_url: item.item_image_url || item.image_url || '',
+            shipping_fee: item.shipping_cost || 0,
+            total_price: item.total_price || item.price || 0,
+            condition: item.condition || '中古',
+            store_name: item.seller || 'PayPayフリマ出品者',
+            location: 'Japan',
+            currency: 'JPY'
+          }));
+          
+          resolve(NextResponse.json({
+            success: true,
+            platform: 'paypay',
+            query: searchQuery,
+            results: standardResults.slice(0, limit),
+            total_results: standardResults.length,
+            data_source: 'paypay_selenium',
+            scraping_method: 'selenium',
+            timestamp: new Date().toISOString()
+          }));
+        } catch (parseError) {
+          console.error('PayPayフリマ結果パースエラー:', parseError);
+          console.error('Output was:', output);
+          resolve(NextResponse.json({
+            success: false,
+            error: 'PayPayフリマ検索結果の解析に失敗しました',
+            details: parseError.message,
+            results: []
+          }, { status: 500 }));
+        }
+      });
+      
+      pythonProcess.on('error', (error) => {
+        console.error('PayPayフリマPythonプロセスエラー:', error);
+        resolve(NextResponse.json({
+          success: false,
+          error: 'PayPayフリマ検索プロセスの起動に失敗しました',
+          details: error.message,
+          results: []
+        }, { status: 500 }));
+      });
+    });
 
   } catch (error) {
     console.error('PayPayフリマ検索エラー:', error);

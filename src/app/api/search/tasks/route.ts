@@ -30,30 +30,38 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const { jan_code } = body;
+    const { jan_code, product_name, type } = body;
 
-    // JANコードのバリデーション
-    if (!jan_code || typeof jan_code !== 'string') {
-      console.error('[TASK_CREATE] Invalid JAN code:', jan_code);
+    let searchParam = '';
+    let taskName = '';
+    let searchType = type || 'jan';
+
+    // 検索パラメータの決定
+    if (jan_code) {
+      // JANコードのバリデーション
+      const cleanJanCode = jan_code.trim().replace(/[^0-9]/g, '');
+      if (cleanJanCode.length !== 13 && cleanJanCode.length !== 8) {
+        console.error('[TASK_CREATE] Invalid JAN code length:', cleanJanCode.length);
+        return NextResponse.json({
+          success: false,
+          error: 'JANコードは8桁または13桁の数字である必要があります'
+        }, { status: 400 });
+      }
+      searchParam = cleanJanCode;
+      taskName = `商品検索 (JANコード: ${cleanJanCode})`;
+      console.log('[TASK_CREATE] Creating task for JAN code:', cleanJanCode);
+    } else if (product_name) {
+      searchParam = product_name.trim();
+      taskName = `商品検索: ${searchParam}`;
+      searchType = 'product';
+      console.log('[TASK_CREATE] Creating task for product name:', searchParam);
+    } else {
+      console.error('[TASK_CREATE] No search parameter provided');
       return NextResponse.json({
         success: false,
-        error: 'JANコードが必要です'
+        error: '検索パラメータ（JANコードまたは商品名）が必要です'
       }, { status: 400 });
     }
-
-    const cleanJanCode = jan_code.trim().replace(/[^0-9]/g, '');
-    if (cleanJanCode.length !== 13 && cleanJanCode.length !== 8) {
-      console.error('[TASK_CREATE] Invalid JAN code length:', cleanJanCode.length);
-      return NextResponse.json({
-        success: false,
-        error: 'JANコードは8桁または13桁の数字である必要があります'
-      }, { status: 400 });
-    }
-
-    console.log('[TASK_CREATE] Creating task for JAN code:', cleanJanCode);
-
-    // デフォルトのタスク名
-    let taskName = `商品検索 (JANコード: ${cleanJanCode})`;
     
     // Supabaseにタスクを作成
     const { data: task, error: insertError } = await supabase
@@ -62,7 +70,10 @@ export async function POST(request: NextRequest) {
         name: taskName,
         status: 'pending',
         search_params: {
-          jan_code: cleanJanCode,
+          jan_code: searchType === 'jan' ? searchParam : undefined,
+          product_name: searchType === 'product' ? searchParam : undefined,
+          query: searchParam,
+          type: searchType,
           platforms: ['yahoo_shopping', 'mercari', 'ebay']
         },
         created_at: new Date().toISOString()
@@ -98,7 +109,9 @@ export async function POST(request: NextRequest) {
         console.log('[TASK_CREATE] Executing unified search engine');
         
         const searchEngine = new UnifiedJanSearchEngineFinal();
-        const searchResults = await searchEngine.executeUnifiedJanSearch(cleanJanCode);
+        const searchResults = searchType === 'jan' 
+          ? await searchEngine.executeUnifiedJanSearch(searchParam)
+          : await searchEngine.executeUnifiedProductSearch(searchParam);
         
         console.log('[TASK_CREATE] Unified search completed:', {
           success: searchResults.success,

@@ -18,7 +18,7 @@ interface SearchResult {
 async function searchAllPlatforms(productName: string | null, janCode: string | null, query: string | null, limit: number = 20) {
   const baseUrl = process.env.NODE_ENV === 'production' 
     ? 'https://buy-records.vercel.app' 
-    : `http://localhost:${process.env.PORT || 3000}`;
+    : 'http://localhost:3000';
   
   // 検索クエリを構築
   let searchQuery = '';
@@ -54,7 +54,7 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
       const controller = new AbortController();
       // Selenium/スクレイピングベースのプラットフォームは時間がかかるため、タイムアウトを延長
       const longTimeoutPlatforms = ['mercari', 'paypay', 'rakuma', 'yodobashi'];
-      const timeout = longTimeoutPlatforms.includes(platform.name) ? 180000 : 30000; // 180秒または30秒
+      const timeout = longTimeoutPlatforms.includes(platform.name) ? 300000 : 60000; // 300秒(5分)または60秒
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       // 正しいパラメータ名を使用
@@ -102,8 +102,14 @@ async function searchAllPlatforms(productName: string | null, janCode: string | 
         console.error(`${platform.name} HTTPエラー:`, response.status);
       }
     } catch (error) {
-      errors.push(`${platform.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      console.error(`${platform.name} 検索エラー:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('aborted')) {
+        errors.push(`${platform.name}: timeout`);
+        console.error(`${platform.name} タイムアウト`);
+      } else {
+        errors.push(`${platform.name}: ${errorMessage}`);
+        console.error(`${platform.name} 検索エラー:`, error);
+      }
     }
   });
 

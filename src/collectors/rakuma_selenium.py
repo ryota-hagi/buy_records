@@ -23,7 +23,7 @@ class RakumaSeleniumScraper:
             selenium_url: Seleniumサーバーのベースアドレス
         """
         self.selenium_url = selenium_url
-        self.base_url = "https://fril.jp"
+        self.base_url = "https://rakuma.rakuten.co.jp"
         
     def search(self, keyword: str) -> List[Dict]:
         """
@@ -44,28 +44,33 @@ class RakumaSeleniumScraper:
         options.add_argument('--window-size=1920,1080')
         options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         
-        # リモートWebDriverに接続
-        driver = webdriver.Remote(
-            command_executor=f'{self.selenium_url}/wd/hub',
-            options=options
-        )
+        # ローカルChromeDriverを直接使用
+        try:
+            # リモートWebDriverを試す
+            driver = webdriver.Remote(
+                command_executor=f'{self.selenium_url}/wd/hub',
+                options=options
+            )
+        except:
+            # リモート接続失敗時はローカルChromeDriverを使用
+            driver = webdriver.Chrome(options=options)
         
         try:
-            # 検索URLを構築
+            # 検索URLを構築（ラクマの新しい検索形式）
             encoded_keyword = urllib.parse.quote(keyword)
-            search_url = f"{self.base_url}/search?query={encoded_keyword}"
+            search_url = f"{self.base_url}/search/{encoded_keyword}"
             
             print(f"ラクマ検索URL: {search_url}")
             
             # ページにアクセス
             driver.get(search_url)
             
-            # ページ読み込み待機（最大30秒）
-            wait = WebDriverWait(driver, 30)
+            # ページ読み込み待機（最大10秒）
+            wait = WebDriverWait(driver, 10)
             
             # JavaScriptの実行完了を待つ
             driver.execute_script("return document.readyState") == "complete"
-            time.sleep(3)  # 追加の待機時間
+            time.sleep(1)  # 追加の待機時間を短縮
             
             # 商品要素が表示されるまで待機
             try:
@@ -94,8 +99,8 @@ class RakumaSeleniumScraper:
                 print("ラクマ: ページの読み込みがタイムアウトしました")
                 return []
             
-            # スクロールして追加の商品を読み込む
-            self._scroll_page(driver)
+            # スクロールはスキップして時間を節約
+            # self._scroll_page(driver)
             
             # 商品情報を抽出
             items = self._extract_items(driver)
@@ -123,11 +128,12 @@ class RakumaSeleniumScraper:
         
         # 商品要素を探す（ラクマの現在の構造に合わせて更新）
         selectors = [
-            'a[href*="item.fril.jp"]',  # 商品リンク（新URL形式）
-            'a[href*="/item/"]',         # 商品リンク（旧形式）
-            'div.item a',                # 商品コンテナ内のリンク
-            '[onclick*="item"]',         # onclickハンドラー付き要素
-            '//a[contains(@href, "item")]'  # XPath形式
+            'a[href*="rakuma.rakuten.co.jp/item/"]',  # 新しいラクマURL形式
+            'a[href*="/item/"]',                       # 商品リンク（相対パス）
+            '[data-testid*="item"]',                   # data-testid属性付き要素
+            'div[class*="item"] a',                    # 商品コンテナ内のリンク
+            'article a',                               # article要素内のリンク
+            '//a[contains(@href, "item")]'             # XPath形式
         ]
         
         item_elements = []
@@ -146,7 +152,7 @@ class RakumaSeleniumScraper:
                         # 要素内に商品リンクがあるか確認
                         if elem.tag_name == 'a':
                             href = elem.get_attribute('href')
-                            if href and ('item.fril.jp' in href or '/item/' in href):
+                            if href and ('rakuma.rakuten.co.jp/item/' in href or '/item/' in href):
                                 valid_elements.append(elem)
                         else:
                             # 要素内のリンクを探す
@@ -187,7 +193,7 @@ class RakumaSeleniumScraper:
                 continue
         
         # 各商品の情報を抽出
-        for element in unique_elements[:20]:  # 最大20件
+        for element in unique_elements[:10]:  # 最大10件に制限して高速化
             try:
                 item_info = self._extract_item_info(element, driver)
                 if item_info and item_info.get('title') and item_info.get('price', 0) > 0:
@@ -227,7 +233,6 @@ class RakumaSeleniumScraper:
                     element = container
                 except:
                     pass
-            else:
                 # コンテナ要素の場合、リンクを探す
                 link_element = element.find_element(By.CSS_SELECTOR, 'a[href*="item"]')
             
