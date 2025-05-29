@@ -17,8 +17,8 @@ const nextConfig: NextConfig = {
   env: {
     SKIP_ENV_VALIDATION: '1',
   },
-  // Docker用のstandalone出力設定
-  output: 'standalone',
+  // Docker用のstandalone出力設定（Vercelでは自動的に無視される）
+  // output: 'standalone',
 };
 
 export default nextConfig;
