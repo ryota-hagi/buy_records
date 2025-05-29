@@ -13,6 +13,8 @@ buy_records/out/
 .env.test.local
 .env.production.local
 .env.docker
+.env.docker.backup
+.env.docker.sync
 buy_records/.env.local
 
 # Docker関連
